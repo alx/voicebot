@@ -1,0 +1,50 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# whatsapp-web.js session data
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Logs
+logs/
+*.log
+plan*
+
+# Temporary audio files
+audio/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models (optional - uncomment if models are too large)
+models/
+
+# Outputs
+audio/output/
