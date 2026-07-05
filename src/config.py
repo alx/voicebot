@@ -49,6 +49,7 @@ Tes réponses seront converties en audio, donc sois naturel et conversationnel."
 # Audio Processing
 AUDIO_DOWNLOAD_TIMEOUT = 30  # seconds
 AUDIO_MAX_SIZE_MB = 10
+AUDIO_MAX_DURATION_SEC = 300  # 5 minutes
 
 # Status Messages (French)
 STATUS_MESSAGES = {

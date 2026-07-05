@@ -108,13 +108,14 @@ def convert_wav_to_ogg_opus(wav_path: str, output_path: str) -> str:
         raise
 
 
-def validate_audio_file(file_path: str, max_size_mb: int = 10) -> bool:
+def validate_audio_file(file_path: str, max_size_mb: int = 10, max_duration_sec: float = 300) -> bool:
     """
     Validate audio file (size, format, duration)
 
     Args:
         file_path: Path to audio file
         max_size_mb: Maximum file size in MB
+        max_duration_sec: Maximum audio duration in seconds
 
     Returns:
         True if valid, False otherwise
@@ -135,9 +136,8 @@ def validate_audio_file(file_path: str, max_size_mb: int = 10) -> bool:
         audio = AudioSegment.from_file(file_path)
         duration_sec = len(audio) / 1000.0
 
-        # Limit duration to 5 minutes (300 seconds)
-        if duration_sec > 300:
-            raise ValueError(f"Audio too long: {duration_sec:.1f}s (max 300s)")
+        if duration_sec > max_duration_sec:
+            raise ValueError(f"Audio too long: {duration_sec:.1f}s (max {max_duration_sec}s)")
 
         # Check if audio has content (not silent/empty)
         if duration_sec < 0.1:

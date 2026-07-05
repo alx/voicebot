@@ -11,6 +11,7 @@ from pathlib import Path
 
 # Import pipeline components
 from src.pipeline import VoicePipeline, VoicePipelineError
+from src.audio_converter import validate_audio_file
 from src import config
 
 # Configure logging to stderr (stdout is reserved for JSON output)
@@ -63,6 +64,13 @@ def main():
             raise FileNotFoundError(f"Audio file not found: {args.audio_file}")
 
         logger.info(f"Processing audio file: {args.audio_file}")
+
+        # Validate before loading any models — reject bad input cheaply
+        validate_audio_file(
+            str(audio_path),
+            max_size_mb=config.AUDIO_MAX_SIZE_MB,
+            max_duration_sec=config.AUDIO_MAX_DURATION_SEC
+        )
 
         # Initialize pipeline (logs to stderr)
         pipeline = VoicePipeline(config)
@@ -143,6 +151,21 @@ def main():
             print(json.dumps(error_output))
         else:
             print(f"\n❌ File Error: {e}\n", file=sys.stderr)
+
+        sys.exit(1)
+
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+
+        if args.json:
+            error_output = {
+                "success": False,
+                "error": str(e),
+                "error_type": "validation_error"
+            }
+            print(json.dumps(error_output))
+        else:
+            print(f"\n❌ Validation Error: {e}\n", file=sys.stderr)
 
         sys.exit(1)
 
