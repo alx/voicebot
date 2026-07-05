@@ -58,13 +58,19 @@ echo "✓ Python virtual environment activated"
 mkdir -p audio/temp
 echo "✓ Created temp audio directory"
 
+# Load LLM_BASE_URL from .env if set (falls back to the same default as src/config.py)
+set -a
+source .env
+set +a
+LLM_BASE_URL="${LLM_BASE_URL:-http://localhost:8081}"
+
 # Check LLM connectivity (optional warning)
 echo ""
 echo "Checking LLM connectivity..."
-if curl -s "http://100.86.147.125:8081/health" > /dev/null 2>&1; then
+if curl -s "${LLM_BASE_URL}/health" > /dev/null 2>&1; then
     echo "✓ LLM accessible"
 else
-    echo "⚠️  Warning: LLM not accessible at http://100.86.147.125:8081"
+    echo "⚠️  Warning: LLM not accessible at ${LLM_BASE_URL}"
     echo "   Voice processing may fail without LLM"
 fi
 
