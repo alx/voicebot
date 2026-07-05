@@ -102,11 +102,15 @@ client.on('message', async (msg) => {
         // Filter: only process voice messages (ptt = push-to-talk)
         if (msg.hasMedia && msg.type === 'ptt') {
             console.log(`\nVoice message received! Queued for processing...`);
-            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client));
+            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client)).catch((error) => {
+                console.error(`Unexpected error in queued voice message handler:`, error);
+            });
         } else if (msg.hasMedia && msg.type === 'audio') {
             // Also handle regular audio messages
             console.log(`\nAudio message received! Queued for processing...`);
-            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client));
+            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client)).catch((error) => {
+                console.error(`Unexpected error in queued voice message handler:`, error);
+            });
         }
 
     } catch (error) {
