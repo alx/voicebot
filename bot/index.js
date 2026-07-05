@@ -2,6 +2,7 @@ import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
 import { handleVoiceMessage } from './voice-handler.js';
+import { createQueue } from './queue.js';
 import config from './config.js';
 
 console.log('='.repeat(60));
@@ -26,6 +27,8 @@ const client = new Client({
         headless: true
     }
 });
+
+const voiceQueue = createQueue();
 
 // QR code event - scan with WhatsApp to authenticate
 client.on('qr', (qr) => {
@@ -98,12 +101,12 @@ client.on('message', async (msg) => {
 
         // Filter: only process voice messages (ptt = push-to-talk)
         if (msg.hasMedia && msg.type === 'ptt') {
-            console.log(`\nVoice message received! Processing...`);
-            await handleVoiceMessage(msg, chat, client);
+            console.log(`\nVoice message received! Queued for processing...`);
+            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client));
         } else if (msg.hasMedia && msg.type === 'audio') {
             // Also handle regular audio messages
-            console.log(`\nAudio message received! Processing...`);
-            await handleVoiceMessage(msg, chat, client);
+            console.log(`\nAudio message received! Queued for processing...`);
+            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client));
         }
 
     } catch (error) {
