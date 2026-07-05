@@ -23,8 +23,9 @@ STT_BEAM_SIZE = 5         # Accuracy vs speed tradeoff (1-10)
 STT_DOWNLOAD_ROOT = os.path.join(MODELS_DIR, "faster-whisper")
 
 # LLM Configuration (llama-server OpenAI-compatible API)
-LLM_API_URL = "http://100.86.147.125:8081/v1/chat/completions"
-LLM_HEALTH_URL = "http://100.86.147.125:8081/health"
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:8081")
+LLM_API_URL = f"{LLM_BASE_URL}/v1/chat/completions"
+LLM_HEALTH_URL = f"{LLM_BASE_URL}/health"
 LLM_MODEL_NAME = "Qwen3VL-8B-Instruct-Q4_K_M.gguf"
 LLM_TEMPERATURE = 0.7
 LLM_MAX_TOKENS = 200
