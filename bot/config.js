@@ -27,5 +27,8 @@ export default {
     ENABLE_ERROR_NOTIFICATIONS: true,
 
     // Python command (can be overridden via env var)
-    PYTHON_CMD: process.env.PYTHON_CMD || 'python'
+    PYTHON_CMD: process.env.PYTHON_CMD || 'python',
+
+    // Max time to wait for the Python pipeline before killing it (ms)
+    PIPELINE_TIMEOUT_MS: parseInt(process.env.PIPELINE_TIMEOUT_MS || '90000', 10)
 };

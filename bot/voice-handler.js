@@ -1,9 +1,9 @@
-import { spawn } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import pkg from 'whatsapp-web.js';
 const { MessageMedia } = pkg;
 import config from './config.js';
+import { runWithTimeout } from './subprocess-timeout.js';
 
 /**
  * Handle incoming voice message
@@ -108,50 +108,25 @@ export async function handleVoiceMessage(msg, chat, client) {
 }
 
 /**
- * Call Python pipeline as subprocess
+ * Call Python pipeline as subprocess, killing it if it exceeds the configured timeout
  * @param {string} audioPath - Path to audio file
  * @param {string} logPrefix - Log prefix for debugging
  * @returns {Promise<Object>} Pipeline result with transcription, llm_response, output_audio_path
  */
-function callPythonPipeline(audioPath, logPrefix = '') {
-    return new Promise((resolve, reject) => {
-        const python = spawn(config.PYTHON_CMD, [
-            '-m', 'src.pipeline_cli',
-            audioPath,
-            '--json',
-            '--output-format', 'ogg'
-        ], {
-            cwd: path.join(path.dirname(new URL(import.meta.url).pathname), '..')
-        });
+async function callPythonPipeline(audioPath, logPrefix = '') {
+    const { stdout } = await runWithTimeout(
+        config.PYTHON_CMD,
+        ['-m', 'src.pipeline_cli', audioPath, '--json', '--output-format', 'ogg'],
+        { cwd: path.join(path.dirname(new URL(import.meta.url).pathname), '..') },
+        config.PIPELINE_TIMEOUT_MS,
+        {
+            onStderr: (text) => console.error(`${logPrefix} [Python stderr]:`, text.trim())
+        }
+    );
 
-        let stdout = '';
-        let stderr = '';
-
-        python.stdout.on('data', (data) => {
-            stdout += data.toString();
-        });
-
-        python.stderr.on('data', (data) => {
-            stderr += data.toString();
-            // Log Python stderr in real-time for debugging
-            console.error(`${logPrefix} [Python stderr]:`, data.toString().trim());
-        });
-
-        python.on('error', (error) => {
-            reject(new Error(`Failed to spawn Python process: ${error.message}`));
-        });
-
-        python.on('close', (code) => {
-            if (code !== 0) {
-                reject(new Error(`Pipeline failed with code ${code}: ${stderr}`));
-            } else {
-                try {
-                    const result = JSON.parse(stdout);
-                    resolve(result);
-                } catch (parseError) {
-                    reject(new Error(`Failed to parse pipeline output: ${parseError.message}\nOutput: ${stdout}`));
-                }
-            }
-        });
-    });
+    try {
+        return JSON.parse(stdout);
+    } catch (parseError) {
+        throw new Error(`Failed to parse pipeline output: ${parseError.message}\nOutput: ${stdout}`);
+    }
 }
