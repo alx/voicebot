@@ -1,5 +1,5 @@
 """
-WhatsApp Voice Bot - STT->LLM->TTS Pipeline with WAHA Integration
+WhatsApp Voice Bot - STT->LLM->TTS Pipeline
 """
 
 __version__ = "1.0.0"

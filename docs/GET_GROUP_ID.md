@@ -7,7 +7,7 @@ This guide explains how to find the WhatsApp group ID where you want to deploy t
 Run the group ID finder script:
 
 ```bash
-./get_group_id.sh
+./scripts/get_group_id.sh
 ```
 
 ## What This Script Does
@@ -23,7 +23,7 @@ Run the group ID finder script:
 
 1. Run the script:
    ```bash
-   ./get_group_id.sh
+   ./scripts/get_group_id.sh
    ```
 
 2. A QR code will appear in the terminal
@@ -43,7 +43,7 @@ Run the group ID finder script:
 
 1. Run the script:
    ```bash
-   ./get_group_id.sh
+   ./scripts/get_group_id.sh
    ```
 
 2. It will connect automatically (no QR code needed)
@@ -148,7 +148,7 @@ The `@g.us` suffix indicates it's a group chat.
 
 2. Run the script again:
    ```bash
-   ./get_group_id.sh
+   ./scripts/get_group_id.sh
    ```
 
 3. Scan the new QR code
@@ -189,8 +189,8 @@ If the script doesn't work, you can find the group ID manually:
 
 ## Files Created
 
-- `/home/alx/code/voice_bot/bot/get_group_id.js` - Node.js script that connects to WhatsApp
-- `/home/alx/code/voice_bot/get_group_id.sh` - Shell wrapper for easy execution
+- `bot/get_group_id.js` - Node.js script that connects to WhatsApp
+- `scripts/get_group_id.sh` - Shell wrapper for easy execution
 
 ## Notes
 
