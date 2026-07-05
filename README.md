@@ -2,6 +2,8 @@
 
 A WhatsApp voice bot that processes voice messages through an STT→LLM→TTS pipeline using whatsapp-web.js.
 
+> **Note on whatsapp-web.js:** this bot connects via [whatsapp-web.js](https://wwebjs.dev/), an unofficial client that automates WhatsApp Web. It is not sanctioned by WhatsApp/Meta and using it technically violates WhatsApp's Terms of Service — accounts *can* be banned for automated use, though this is commonly used for personal/small-group bots. Use at your own risk, ideally with a number you don't mind losing.
+
 ## Architecture
 
 **Hybrid Node.js + Python:**
@@ -16,12 +18,13 @@ WhatsApp → whatsapp-web.js → Node.js bot → Python subprocess → Response
 ## Features
 
 - 🎤 Receives voice messages from WhatsApp groups
-- 📝 Transcribes speech using faster-whisper (French/English)
-- 🤖 Generates responses using remote LLM (Qwen3VL-8B)
+- 📝 Transcribes speech using faster-whisper (French by default)
+- 🤖 Generates responses using any OpenAI-compatible LLM server
 - 🔊 Synthesizes speech using Piper TTS
 - ✅ Sends 4 status updates: acknowledgment, transcription, LLM response, audio
 - 🔐 QR code authentication (once), session persisted
 - ❌ Graceful error handling with user notifications
+- 🚦 Oversized/overlong voice notes rejected before they hit the pipeline; only one message processed at a time; a hung pipeline subprocess is killed after a timeout
 
 ## Prerequisites
 
@@ -30,7 +33,7 @@ WhatsApp → whatsapp-web.js → Node.js bot → Python subprocess → Response
    node --version  # Check if installed
    ```
 
-2. **Python 3.8+** with virtual environment
+2. **Python 3.8-3.12** (3.13 currently lacks a prebuilt wheel for a transitive dependency of `faster-whisper`; use `python3.11` or `python3.12` explicitly if your system default is newer)
    ```bash
    python3 --version
    ```
@@ -45,7 +48,9 @@ WhatsApp → whatsapp-web.js → Node.js bot → Python subprocess → Response
    sudo apt install ffmpeg
    ```
 
-5. **LLM server** accessible at `http://100.86.147.125:8081` (or update config)
+5. **An OpenAI-compatible LLM server** (e.g. [llama-server](https://github.com/ggerganov/llama.cpp), [ollama](https://ollama.com/), vLLM, LM Studio) reachable over HTTP. Defaults to `http://localhost:8081`; override with `LLM_BASE_URL` in `.env` if it runs elsewhere.
+
+6. **Piper TTS voice model** — see step 5 below.
 
 ## Quick Start
 
@@ -57,23 +62,37 @@ cd bot
 npm install
 ```
 
-**Python:** (already installed if you ran WAHA version)
+**Python:**
 ```bash
+python3 -m venv .venv
 source .venv/bin/activate
-# Dependencies already installed from previous implementation
+pip install -r requirements.txt
 ```
 
-### 2. Configure Environment
+### 2. Download a Piper voice model
+
+`piper-tts` (installed above) provides the `piper` CLI, but voices are downloaded separately. This project defaults to the French `fr_FR-siwis-medium` voice:
+
+```bash
+mkdir -p models/piper
+source .venv/bin/activate
+python -m piper.download_voices fr_FR-siwis-medium --download-dir models/piper
+```
+
+This creates `models/piper/fr_FR-siwis-medium.onnx` and its `.onnx.json` config, which `src/pipeline.py` expects. Browse other voices at the [Piper voices catalog](https://github.com/rhasspy/piper/blob/master/VOICES.md) — see "Customization" below for using a different language/voice.
+
+### 3. Configure Environment
 
 ```bash
 # Create .env from template
 cp .env.example .env
 
-# Edit .env (VOICEBOT_GROUP_ID is optional on first run)
+# Edit .env (VOICEBOT_GROUP_ID is optional on first run; LLM_BASE_URL only needed
+# if your LLM server isn't at http://localhost:8081)
 nano .env
 ```
 
-### 3. Start the Bot
+### 4. Start the Bot
 
 ```bash
 ./start_bot.sh
@@ -91,18 +110,18 @@ nano .env
 - Update `.env` with your target group ID
 - Restart bot
 
-### 4. Find Your Group ID
+### 5. Find Your Group ID
 
 **Option A: Use the Group ID Finder Script (Recommended)**
 
 Run the provided script to list all your groups:
 ```bash
-./get_group_id.sh
+./scripts/get_group_id.sh
 ```
 
 This will display all your WhatsApp groups with their IDs. Copy the ID you want to use.
 
-See [GET_GROUP_ID.md](GET_GROUP_ID.md) for detailed instructions.
+See [docs/GET_GROUP_ID.md](docs/GET_GROUP_ID.md) for detailed instructions.
 
 **Option B: Manual Method**
 
@@ -118,7 +137,7 @@ VOICEBOT_GROUP_ID=120363123456789@g.us
 
 Restart the bot.
 
-### 5. Test with Voice Message
+### 6. Test with Voice Message
 
 1. Send a voice message to the configured group
 2. Bot will respond with 4 messages:
@@ -130,25 +149,31 @@ Restart the bot.
 ## Project Structure
 
 ```
-voice_bot/
-├── bot/                      # Node.js WhatsApp bot
-│   ├── index.js              # Main bot entry point
-│   ├── voice-handler.js      # Voice message processing
-│   ├── config.js             # Bot configuration
-│   ├── package.json          # Node dependencies
-│   └── .wwebjs_auth/         # Session data (auto-created)
+voicebot/
+├── bot/                          # Node.js WhatsApp bot
+│   ├── index.js                  # Main bot entry point
+│   ├── voice-handler.js          # Voice message processing
+│   ├── subprocess-timeout.js     # Timeout/kill wrapper for the Python subprocess
+│   ├── queue.js                  # Serializes voice message processing
+│   ├── *.test.js                 # Node test suite (run: npm test)
+│   ├── config.js                 # Bot configuration
+│   ├── package.json              # Node dependencies
+│   └── .wwebjs_auth/             # Session data (auto-created)
 │
-├── src/                      # Python pipeline
-│   ├── pipeline.py           # VoicePipeline class
-│   ├── pipeline_cli.py       # CLI wrapper (NEW)
-│   ├── audio_converter.py    # Format conversions
-│   └── config.py             # Python config
+├── src/                          # Python pipeline
+│   ├── pipeline.py                # VoicePipeline class
+│   ├── pipeline_cli.py            # CLI wrapper for Node integration
+│   ├── audio_converter.py         # Format conversion + validation
+│   └── config.py                  # Python config
 │
-├── tests/step1/              # Original test files
-├── audio/                    # Audio files
-├── models/                   # AI models
-├── .env                      # Configuration
-└── start_bot.sh              # Startup script
+├── tests/                        # Python test suite (run: pytest)
+├── tests/step1/                  # Manual example scripts (STT/TTS tried individually)
+├── docs/                         # Setup guides
+├── audio/                        # Runtime audio files (gitignored)
+├── models/                       # AI models (gitignored)
+├── LICENSE
+├── .env                          # Your local configuration (gitignored)
+└── start_bot.sh                  # Startup script
 ```
 
 ## Configuration
@@ -159,10 +184,17 @@ voice_bot/
 # WhatsApp group ID (format: 120363123456789@g.us)
 VOICEBOT_GROUP_ID=
 
+# Optional: LLM server, if not http://localhost:8081
+# LLM_BASE_URL=http://localhost:8081
+# LLM_MODEL_NAME=your-model-name.gguf
+
+# Optional: max time (ms) to wait for the Python pipeline before killing it
+# PIPELINE_TIMEOUT_MS=90000
+
 # Optional: Python command override
 # PYTHON_CMD=python3
 
-# Optional: Logging level
+# Optional: Override default logging level
 # LOG_LEVEL=INFO
 ```
 
@@ -179,25 +211,43 @@ STATUS_MESSAGES: {
 }
 ```
 
+## Customization
+
+This bot defaults to French. To use another language, change these three places:
+
+1. `src/config.py`: `STT_LANGUAGE` (or `None` for auto-detect) and `SYSTEM_PROMPT`
+2. `src/pipeline.py`: `synthesize_speech()`'s hardcoded Piper model path (`models/piper/fr_FR-siwis-medium.onnx`)
+3. Download the corresponding Piper voice for your target language (see step 2 in Quick Start)
+
 ## Testing
+
+### Automated tests
+
+```bash
+# Python (pytest)
+source .venv/bin/activate
+pytest
+
+# Node (built-in test runner)
+cd bot
+npm test
+```
 
 ### Test Python Pipeline Directly
 
 ```bash
 source .venv/bin/activate
-
-# Test with sample audio
-python -m src.pipeline_cli audio/input/sample_greeting.wav --json
-
+python -m src.pipeline_cli path/to/audio.wav --json
 # Expected output: JSON with transcription, llm_response, output_audio_path
 ```
 
-### Test Individual Components
+### Manual component scripts
 
+`tests/step1/` has small standalone scripts for trying STT/TTS individually (not part of the automated suite):
 ```bash
-# Original standalone test (still works)
 cd tests/step1
-python test_pipeline.py ../../audio/input/sample_greeting.wav
+python create_sample_audio.py       # generates sample French WAV files
+python test_stt_only.py ../../audio/input/sample_greeting.wav
 ```
 
 ## Troubleshooting
@@ -233,10 +283,10 @@ rm -rf bot/.wwebjs_auth/
 ```bash
 # Test Python pipeline manually
 source .venv/bin/activate
-python -m src.pipeline_cli audio/input/sample_greeting.wav --json
+python -m src.pipeline_cli path/to/audio.wav --json
 
-# Check LLM connectivity
-curl http://100.86.147.125:8081/health
+# Check LLM connectivity (uses LLM_BASE_URL from .env, default localhost:8081)
+curl "${LLM_BASE_URL:-http://localhost:8081}/health"
 ```
 
 ### Bot Not Responding to Voice Messages
@@ -248,22 +298,20 @@ curl http://100.86.147.125:8081/health
 
 ## Performance
 
-Same as WAHA implementation:
+Approximate latency per voice message (French, small Whisper model, CPU STT/TTS):
 - Download: ~0.5s
-- STT: ~1.9s
-- LLM: ~2.4s
-- TTS: ~1.1s
+- STT: ~1.5-2s
+- LLM: ~2-3s (depends on your LLM server/hardware)
+- TTS: ~1s
 - Upload + status: ~0.5s
 - **Total: ~6-7 seconds per voice message**
 
-## Advantages Over WAHA
+## Known Limitations
 
-1. ✅ No Docker container needed
-2. ✅ Direct WhatsApp Web connection
-3. ✅ Event-driven (more reliable than webhooks)
-4. ✅ Session persistence (QR code only once)
-5. ✅ Simpler deployment (single process)
-6. ✅ No external service dependency
+- **No persistent model**: each voice message spawns a new Python subprocess that reloads the Whisper model from disk. This adds latency vs. a long-running worker process — a reasonable target for a future improvement, not implemented here to keep the architecture simple.
+- **Single-instance, no horizontal scaling**: one bot process, one WhatsApp session. Not designed for multiple concurrent group deployments from one codebase instance.
+- **No per-user rate limiting**: anyone in the configured group can trigger the pipeline; there's no cooldown or quota per sender, only the global one-at-a-time queue.
+- **Unofficial WhatsApp client**: see the note at the top of this README.
 
 ## Development
 
@@ -281,53 +329,17 @@ npm run dev  # Watches for file changes
 LOG_LEVEL=DEBUG ./start_bot.sh
 ```
 
-### Manual Testing
-
-```bash
-# Test Node.js can call Python
-cd bot
-node -e "
-const { spawn } = require('child_process');
-const py = spawn('python', ['-m', 'src.pipeline_cli', '--help'], {cwd: '..'});
-py.stdout.on('data', d => console.log(d.toString()));
-"
-```
-
-## Files Changed from WAHA Version
-
-**New Files:**
-- `bot/index.js` - WhatsApp bot entry point
-- `bot/voice-handler.js` - Message processing
-- `bot/config.js` - Bot configuration
-- `bot/package.json` - Node dependencies
-- `src/pipeline_cli.py` - CLI wrapper for pipeline
-
-**Removed Files:**
-- `src/waha_client.py` - WAHA-specific client
-- `src/webhook_server.py` - FastAPI webhook server
-
-**Modified Files:**
-- `.env.example` - Updated for whatsapp-web.js
-- `.gitignore` - Added Node.js and .wwebjs_auth/
-- `start_bot.sh` - New startup script
-
-**Unchanged Files:**
-- `src/pipeline.py` - Pipeline logic (reused)
-- `src/audio_converter.py` - Audio conversions
-- `src/config.py` - Python config
-- `tests/step1/*` - All test files
-
 ## Support
 
 For issues:
 1. Check logs in terminal
-2. Test Python pipeline: `python -m src.pipeline_cli audio/input/sample_greeting.wav --json`
+2. Test Python pipeline: `python -m src.pipeline_cli path/to/audio.wav --json`
 3. Verify Node.js and Python both working
 4. Check `.env` configuration
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
 
 ## Acknowledgments
 
