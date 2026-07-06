@@ -50,7 +50,7 @@ WhatsApp → whatsapp-web.js → Node.js bot → Python subprocess → Response
 
 5. **An OpenAI-compatible LLM server** (e.g. [llama-server](https://github.com/ggerganov/llama.cpp), [ollama](https://ollama.com/), vLLM, LM Studio) reachable over HTTP. Defaults to `http://localhost:8081`; override with `LLM_BASE_URL` in `.env` if it runs elsewhere.
 
-6. **Piper TTS voice model** — see step 5 below.
+6. **Piper TTS voice model** — see step 2 below.
 
 ## Quick Start
 
