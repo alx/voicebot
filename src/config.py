@@ -37,6 +37,12 @@ LLM_TEMPERATURE = 0.7
 LLM_MAX_TOKENS = 200
 LLM_TIMEOUT = 60          # seconds
 
+# SillyTavern persona route (optional alternate backend for the LLM step)
+# "direct" calls LLM_API_URL as today; "sillytavern" routes through st-bridge instead
+LLM_BACKEND = os.getenv("LLM_BACKEND", "direct")
+ST_BRIDGE_URL = os.getenv("ST_BRIDGE_URL", "http://localhost:8091")
+ST_BRIDGE_TIMEOUT = 60  # seconds
+
 # TTS Configuration (Piper)
 TTS_LANGUAGE = "fr"       # Default output language (fr or en)
 TTS_DEVICE = "cpu"        # Using CPU to avoid GPU memory conflicts

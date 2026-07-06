@@ -1,0 +1,16 @@
+{
+  "name": "st-bridge",
+  "version": "1.0.0",
+  "description": "Puppeteer bridge that drives a live SillyTavern chat to answer voicebot pipeline queries with a persona",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "puppeteer": "^23.0.0"
+  }
+}

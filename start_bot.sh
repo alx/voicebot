@@ -74,6 +74,20 @@ else
     echo "   Voice processing may fail without LLM"
 fi
 
+# Check SillyTavern bridge connectivity if the persona route is enabled
+if [ "${LLM_BACKEND:-direct}" = "sillytavern" ]; then
+    ST_BRIDGE_URL="${ST_BRIDGE_URL:-http://localhost:8091}"
+    echo ""
+    echo "Checking SillyTavern bridge connectivity..."
+    if curl -s "${ST_BRIDGE_URL}/health" > /dev/null 2>&1; then
+        echo "✓ st-bridge accessible"
+    else
+        echo "⚠️  Warning: st-bridge not accessible at ${ST_BRIDGE_URL}"
+        echo "   Start it with: cd st-bridge && npm start"
+        echo "   See docs/SILLYTAVERN_SETUP.md for full setup instructions"
+    fi
+fi
+
 # Check if chromium/puppeteer dependencies are available
 echo ""
 echo "Checking system dependencies..."

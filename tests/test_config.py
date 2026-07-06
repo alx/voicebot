@@ -35,3 +35,32 @@ def test_dead_waha_and_tts_config_removed():
         "TTS_SPEAKER_WAV",
     ):
         assert not hasattr(config, attr), f"{attr} should have been removed"
+
+
+def test_llm_backend_defaults_to_direct(monkeypatch):
+    monkeypatch.delenv("LLM_BACKEND", raising=False)
+    config = _reload_config()
+    assert config.LLM_BACKEND == "direct"
+
+
+def test_llm_backend_override(monkeypatch):
+    monkeypatch.setenv("LLM_BACKEND", "sillytavern")
+    config = _reload_config()
+    assert config.LLM_BACKEND == "sillytavern"
+
+
+def test_st_bridge_url_defaults_to_localhost(monkeypatch):
+    monkeypatch.delenv("ST_BRIDGE_URL", raising=False)
+    config = _reload_config()
+    assert config.ST_BRIDGE_URL == "http://localhost:8091"
+
+
+def test_st_bridge_url_override(monkeypatch):
+    monkeypatch.setenv("ST_BRIDGE_URL", "http://example.internal:9100")
+    config = _reload_config()
+    assert config.ST_BRIDGE_URL == "http://example.internal:9100"
+
+
+def test_st_bridge_timeout_is_an_int():
+    config = _reload_config()
+    assert config.ST_BRIDGE_TIMEOUT == 60
