@@ -20,7 +20,8 @@
 </head>
 <body>
 <nav><a href="index.html">Home</a>
-<a href="get_group_id.html">Finding Your WhatsApp Group ID</a></nav>
+<a href="get_group_id.html">Finding Your WhatsApp Group ID</a>
+<a href="sillytavern_setup.html">Using a SillyTavern Persona for the LLM Step</a></nav>
 <main><h1>WhatsApp Voice Bot - whatsapp-web.js</h1>
 <p>A WhatsApp voice bot that processes voice messages through an STT→LLM→TTS pipeline using whatsapp-web.js.</p>
 <blockquote>
@@ -163,6 +164,13 @@ nano .env
 │   ├── audio_converter.py         # Format conversion + validation
 │   └── config.py                  # Python config
 │
+├── st-bridge/                    # Optional: SillyTavern persona bridge (see docs/SILLYTAVERN_SETUP.md)
+│   ├── index.js                   # Entry point: launches browser + HTTP server
+│   ├── chat-client.js             # Chat orchestration (submit + poll for reply)
+│   ├── puppeteer-adapter.js       # Real SillyTavern DOM glue
+│   ├── server.js                  # HTTP API (/reply, /health)
+│   └── config.js                  # st-bridge configuration
+│
 ├── tests/                        # Python test suite (run: pytest)
 ├── tests/step1/                  # Manual example scripts (STT/TTS tried individually)
 ├── docs/                         # Setup guides
@@ -206,6 +214,11 @@ VOICEBOT_GROUP_ID=
 <li><code>src/pipeline.py</code>: <code>synthesize_speech()</code>'s hardcoded Piper model path (<code>models/piper/fr_FR-siwis-medium.onnx</code>)</li>
 <li>Download the corresponding Piper voice for your target language (see step 2 in Quick Start)</li>
 </ol>
+<h2>Optional: SillyTavern Persona Route</h2>
+<p>Instead of the default direct LLM call, the pipeline can route replies
+through a real chat persona defined in <a href="https://github.com/SillyTavern/SillyTavern">SillyTavern</a>,
+with multi-turn conversation memory. See
+<a href="docs/SILLYTAVERN_SETUP.md">docs/SILLYTAVERN_SETUP.md</a> for setup instructions.</p>
 <h2>Testing</h2>
 <h3>Automated tests</h3>
 <pre><code class="language-bash"># Python (pytest)

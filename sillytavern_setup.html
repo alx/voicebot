@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Using a SillyTavern Persona for the LLM Step</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.6; color: #1a1a1a; }
+  nav { margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #ddd; }
+  nav a { margin-right: 1rem; text-decoration: none; color: #0969da; }
+  nav a:hover { text-decoration: underline; }
+  pre { background: #f6f8fa; padding: 1rem; overflow-x: auto; border-radius: 6px; }
+  code { background: #f6f8fa; padding: 0.2em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  h1, h2, h3 { line-height: 1.25; }
+  table { border-collapse: collapse; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; }
+  img { max-width: 100%; }
+</style>
+</head>
+<body>
+<nav><a href="index.html">Home</a>
+<a href="get_group_id.html">Finding Your WhatsApp Group ID</a>
+<a href="sillytavern_setup.html">Using a SillyTavern Persona for the LLM Step</a></nav>
+<main><h1>Using a SillyTavern Persona for the LLM Step</h1>
+<p>By default, the voice pipeline sends each transcription straight to the LLM
+with a fixed system prompt (<code>SYSTEM_PROMPT</code> in <code>src/config.py</code>) and no memory
+between messages. Setting <code>LLM_BACKEND=sillytavern</code> instead routes that step
+through a live <a href="https://github.com/SillyTavern/SillyTavern">SillyTavern</a>
+instance, so replies come from a real character/persona you define there —
+with SillyTavern's own multi-turn chat history.</p>
+<p>This works by having a small companion service, <code>st-bridge/</code>, drive
+SillyTavern's actual web UI with a headless browser (the same approach this
+project already uses for WhatsApp itself). It types each message into
+SillyTavern's chat box and reads the reply back out, so persona behavior,
+example dialogue, and conversation memory all come from SillyTavern directly
+— nothing is reimplemented on the Python/Node side.</p>
+<h2>1. Install and run SillyTavern</h2>
+<pre><code class="language-bash">git clone https://github.com/SillyTavern/SillyTavern.git
+cd SillyTavern
+npm install
+npm start
+</code></pre>
+<p>By default this serves the UI at <code>http://localhost:8000</code>. If <code>st-bridge</code> will
+run on a <em>different</em> machine than SillyTavern, edit SillyTavern's
+<code>config.yaml</code> and set <code>listen: true</code> so it accepts connections from other
+hosts — and see the security note at the bottom of this guide before doing
+so.</p>
+<h2>2. Connect SillyTavern to an LLM</h2>
+<p>SillyTavern needs its own connection to an LLM backend (separate from this
+bot's own <code>LLM_BASE_URL</code> — though it can point at the exact same server):</p>
+<ol>
+<li>Open SillyTavern in a browser, click the &quot;API Connections&quot; plug icon.</li>
+<li>Choose <strong>Chat Completion</strong> as the API, and <strong>Custom (OpenAI-compatible)</strong>
+as the source.</li>
+<li>Enter your LLM server's URL (e.g. <code>http://localhost:8081/v1</code>) — do not
+add <code>/chat/completions</code> to the end.</li>
+<li>Click &quot;Connect&quot; and confirm it shows as connected.</li>
+</ol>
+<h2>3. Create a character/persona</h2>
+<ol>
+<li>Click the &quot;Character Management&quot; icon in the left panel.</li>
+<li>Click &quot;Create New Character&quot;.</li>
+<li>Fill in: <strong>Name</strong>, <strong>Description</strong>, <strong>Personality</strong>, <strong>Scenario</strong>, and
+optionally <strong>Example Dialogue</strong> and a <strong>First Message</strong>. This is the
+persona <code>st-bridge</code> will talk to.</li>
+<li>Save the character.</li>
+</ol>
+<h2>4. Start a chat with the character</h2>
+<p>Click the character in the character list to open a chat with them. This is
+the chat <code>st-bridge</code> will keep open and reuse for every voice message.</p>
+<h2>5. Configure and start <code>st-bridge</code></h2>
+<pre><code class="language-bash">cd st-bridge
+cp .env.example .env
+</code></pre>
+<p>Edit <code>st-bridge/.env</code>:</p>
+<pre><code class="language-bash">ST_BRIDGE_PORT=8091
+ST_BASE_URL=http://localhost:8000
+ST_CHARACTER_NAME=&lt;exact name you gave the character in step 3&gt;
+ST_REPLY_TIMEOUT_MS=60000
+</code></pre>
+<p>Install and start it:</p>
+<pre><code class="language-bash">npm install
+npm start
+</code></pre>
+<p>On startup it launches a headless browser, opens SillyTavern, selects the
+configured character, and listens for requests from the Python pipeline.
+Leave this process running alongside the WhatsApp bot.</p>
+<h2>6. Enable the route in the bot's <code>.env</code></h2>
+<p>In the project's root <code>.env</code>:</p>
+<pre><code class="language-bash">LLM_BACKEND=sillytavern
+ST_BRIDGE_URL=http://localhost:8091
+</code></pre>
+<p>Restart the bot (<code>./start_bot.sh</code>). Voice messages will now be answered by
+the SillyTavern persona instead of the direct LLM call.</p>
+<h2>Notes and limitations</h2>
+<ul>
+<li><strong>One shared conversation.</strong> All voice messages in the configured WhatsApp
+group share a single SillyTavern chat/history — there's no per-sender
+memory.</li>
+<li><strong>No automatic fallback.</strong> If <code>st-bridge</code> is down or SillyTavern fails to
+reply in time, the bot reports an error instead of silently falling back
+to the direct LLM path.</li>
+<li><strong>UI-dependent.</strong> <code>st-bridge</code> drives SillyTavern's actual web page, so a
+SillyTavern update that changes its chat UI's markup can break it. If
+replies stop working after upgrading SillyTavern, check <code>st-bridge</code>'s
+selectors in <code>st-bridge/puppeteer-adapter.js</code> against the new markup.</li>
+<li><strong>Network security.</strong> If SillyTavern or <code>st-bridge</code> are exposed beyond
+<code>localhost</code> (e.g. <code>st-bridge</code> running on a different machine than
+SillyTavern), securing that connection (VPN, reverse proxy with auth,
+firewall rules) is your responsibility — this integration does not add
+any authentication of its own.</li>
+</ul>
+</main>
+</body>
+</html>
