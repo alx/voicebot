@@ -179,6 +179,46 @@ class VoicePipeline:
             logger.error(f"[LLM] ✗ LLM query failed: {e}")
             raise VoicePipelineError(f"LLM query failed: {e}")
 
+    def query_sillytavern(self, user_text: str) -> str:
+        """
+        Alternate Step 2: Get a persona-driven reply via the SillyTavern bridge
+
+        Args:
+            user_text: User input text
+
+        Returns:
+            SillyTavern reply text
+
+        Raises:
+            VoicePipelineError: If the bridge call fails
+        """
+        logger.info(f"[LLM] Querying SillyTavern bridge: {self.config.ST_BRIDGE_URL}")
+        start = time.time()
+
+        try:
+            response = requests.post(
+                f"{self.config.ST_BRIDGE_URL}/reply",
+                json={"text": user_text},
+                timeout=self.config.ST_BRIDGE_TIMEOUT
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            reply = data["reply"].strip()
+
+            elapsed = time.time() - start
+            logger.info(f"[LLM] ✓ SillyTavern reply in {elapsed:.2f}s")
+            logger.info(f"[LLM] Response: \"{reply}\"")
+
+            if not reply:
+                raise VoicePipelineError("Empty SillyTavern reply")
+
+            return reply
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"[LLM] ✗ SillyTavern bridge query failed: {e}")
+            raise VoicePipelineError(f"SillyTavern bridge query failed: {e}")
+
     def synthesize_speech(self, text: str, language: str, output_path: str):
         """
         Step 3: Synthesize speech using Piper TTS
@@ -268,7 +308,10 @@ class VoicePipeline:
 
             # Step 2: LLM
             llm_start = time.time()
-            llm_response = self.query_llm(transcription, detected_lang)
+            if self.config.LLM_BACKEND == "sillytavern":
+                llm_response = self.query_sillytavern(transcription)
+            else:
+                llm_response = self.query_llm(transcription, detected_lang)
             timing['llm'] = time.time() - llm_start
 
             # Step 3: TTS
