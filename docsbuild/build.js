@@ -9,6 +9,27 @@ const TEMPLATE_PATH = path.join(__dirname, 'template.html');
 
 const md = new MarkdownIt({ html: true });
 
+// Rewrite relative links to markdown files (e.g. "docs/GET_GROUP_ID.md",
+// "./SETUP.md") to the flat .html slug the site actually serves them at —
+// otherwise links copied from the repo's raw markdown 404 on the built site.
+const defaultLinkOpen =
+  md.renderer.rules.link_open ||
+  ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options));
+
+md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+  const token = tokens[idx];
+  const hrefIndex = token.attrIndex('href');
+  if (hrefIndex >= 0) {
+    const href = token.attrs[hrefIndex][1];
+    if (/\.md(#.*)?$/i.test(href) && !/^[a-z]+:\/\//i.test(href)) {
+      const [pathPart, hash] = href.split('#');
+      const newHref = slugify(path.basename(pathPart)) + (hash ? `#${hash}` : '');
+      token.attrs[hrefIndex][1] = newHref;
+    }
+  }
+  return defaultLinkOpen(tokens, idx, options, env, self);
+};
+
 function escapeHtml(text) {
   return text
     .replace(/&/g, '&amp;')
