@@ -204,14 +204,17 @@ class VoicePipeline:
             response.raise_for_status()
 
             data = response.json()
-            reply = data["reply"].strip()
+            try:
+                reply = data["reply"].strip()
+            except (KeyError, TypeError) as e:
+                raise VoicePipelineError(f"Malformed SillyTavern bridge response: {e}")
+
+            if not reply:
+                raise VoicePipelineError("Empty SillyTavern reply")
 
             elapsed = time.time() - start
             logger.info(f"[LLM] ✓ SillyTavern reply in {elapsed:.2f}s")
             logger.info(f"[LLM] Response: \"{reply}\"")
-
-            if not reply:
-                raise VoicePipelineError("Empty SillyTavern reply")
 
             return reply
 

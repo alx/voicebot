@@ -26,12 +26,21 @@ export function createServer(replyFn) {
             return;
         }
 
+        busy = true;
+
         let body = '';
         req.on('data', (chunk) => {
             body += chunk;
         });
+        req.on('error', (err) => {
+            console.error('st-bridge request stream error:', err);
+            busy = false;
+            if (!res.headersSent && !res.writableEnded) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Request stream error' }));
+            }
+        });
         req.on('end', async () => {
-            busy = true;
             try {
                 const parsed = JSON.parse(body || '{}');
                 if (!parsed.text || typeof parsed.text !== 'string') {
@@ -44,8 +53,11 @@ export function createServer(replyFn) {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ reply }));
             } catch (error) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: error.message }));
+                console.error('st-bridge request handling error:', error);
+                if (!res.headersSent && !res.writableEnded) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Internal error' }));
+                }
             } finally {
                 busy = false;
             }

@@ -32,7 +32,9 @@ async function main() {
 
     async function shutdown() {
         console.log('\nShutting down st-bridge...');
-        server.close();
+        await new Promise((resolve) => {
+            server.close(() => resolve());
+        });
         await browser.close();
         process.exit(0);
     }

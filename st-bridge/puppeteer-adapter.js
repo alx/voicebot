@@ -47,8 +47,14 @@ export function createPageAdapter(page) {
             await page.click(SELECTORS.sendButton);
         },
         async isReplyReady() {
-            const count = await page.$$eval(SELECTORS.messages, (els) => els.length);
+            const { count, lastIsUser } = await page.$$eval(SELECTORS.messages, (els) => ({
+                count: els.length,
+                lastIsUser: els[els.length - 1]?.getAttribute('is_user') === 'true',
+            }));
             if (count <= countBeforeSubmit) {
+                return false;
+            }
+            if (lastIsUser) {
                 return false;
             }
 

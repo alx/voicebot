@@ -92,13 +92,25 @@ test('POST /reply while busy returns 409', async () => {
             return `echo: ${text}`;
         },
         async (port) => {
+            // Fire both requests back-to-back with no delay between them, so their
+            // bodies are still streaming/arriving concurrently. The busy guard must
+            // still serialize them correctly regardless of body-transmission timing
+            // or which of the two connections happens to be accepted first.
             const first = postJson(port, '/reply', { text: 'one' });
-            await new Promise((resolve) => setTimeout(resolve, 20));
-            const second = await postJson(port, '/reply', { text: 'two' });
-            assert.equal(second.status, 409);
+            const second = postJson(port, '/reply', { text: 'two' });
+
+            // Whichever request is rejected as busy resolves immediately (it never
+            // touches replyFn/the gate); the accepted one stays pending until we
+            // release the gate below. Race them to find the immediate 409 without
+            // assuming which one arrived "first".
+            const quick = await Promise.race([first, second]);
+            assert.equal(quick.status, 409);
+
             release();
-            const firstResult = await first;
-            assert.equal(firstResult.status, 200);
+            const [firstResult, secondResult] = await Promise.all([first, second]);
+
+            const statuses = [firstResult.status, secondResult.status].sort();
+            assert.deepEqual(statuses, [200, 409]);
         }
     );
 });
