@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finding Your WhatsApp Group ID</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.6; color: #1a1a1a; }
+  nav { margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #ddd; }
+  nav a { margin-right: 1rem; text-decoration: none; color: #0969da; }
+  nav a:hover { text-decoration: underline; }
+  pre { background: #f6f8fa; padding: 1rem; overflow-x: auto; border-radius: 6px; }
+  code { background: #f6f8fa; padding: 0.2em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  h1, h2, h3 { line-height: 1.25; }
+  table { border-collapse: collapse; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; }
+  img { max-width: 100%; }
+</style>
+</head>
+<body>
+<nav><a href="index.html">Home</a>
+<a href="get_group_id.html">Finding Your WhatsApp Group ID</a></nav>
+<main><h1>Finding Your WhatsApp Group ID</h1>
+<p>This guide explains how to find the WhatsApp group ID where you want to deploy the bot.</p>
+<h2>Quick Start</h2>
+<p>Run the group ID finder script:</p>
+<pre><code class="language-bash">./scripts/get_group_id.sh
+</code></pre>
+<h2>What This Script Does</h2>
+<ol>
+<li>Connects to WhatsApp using the same authentication as your main bot</li>
+<li>Lists all your WhatsApp groups with their names and IDs</li>
+<li>Shows the number of participants in each group</li>
+<li>Provides instructions for configuring your bot</li>
+</ol>
+<h2>First Time Usage</h2>
+<p><strong>If you haven't authenticated WhatsApp yet:</strong></p>
+<ol>
+<li>
+<p>Run the script:</p>
+<pre><code class="language-bash">./scripts/get_group_id.sh
+</code></pre>
+</li>
+<li>
+<p>A QR code will appear in the terminal</p>
+</li>
+<li>
+<p>Open WhatsApp on your phone:</p>
+<ul>
+<li>Go to <strong>Settings</strong> → <strong>Linked Devices</strong></li>
+<li>Tap <strong>&quot;Link a Device&quot;</strong></li>
+<li>Scan the QR code displayed in the terminal</li>
+</ul>
+</li>
+<li>
+<p>Wait for authentication to complete</p>
+</li>
+<li>
+<p>The script will list all your groups with their IDs</p>
+</li>
+</ol>
+<h2>Subsequent Usage</h2>
+<p><strong>If you've already authenticated (session exists in <code>.wwebjs_auth/</code>):</strong></p>
+<ol>
+<li>
+<p>Run the script:</p>
+<pre><code class="language-bash">./scripts/get_group_id.sh
+</code></pre>
+</li>
+<li>
+<p>It will connect automatically (no QR code needed)</p>
+</li>
+<li>
+<p>Groups will be listed immediately</p>
+</li>
+</ol>
+<h2>Example Output</h2>
+<pre><code>==========================================================
+WhatsApp Group ID Finder
+==========================================================
+
+This script will list all your WhatsApp groups with their IDs.
+You can then copy the ID to your .env file.
+
+Starting WhatsApp Group ID Finder...
+
+Connecting to WhatsApp...
+This may take a moment...
+
+✓ Authenticated successfully!
+
+==========================================================
+✓ WhatsApp connected!
+==========================================================
+
+Fetching all chats...
+
+Found 3 group(s):
+
+==========================================================
+
+1. Family Group
+   ID: 120363123456789@g.us
+   Participants: 5
+
+2. Work Team
+   ID: 120363987654321@g.us
+   Participants: 12
+
+3. Friends
+   ID: 120363555555555@g.us
+   Participants: 8
+
+==========================================================
+
+To use a group, copy its ID to your .env file:
+VOICEBOT_GROUP_ID=&lt;paste_id_here&gt;
+
+Example:
+VOICEBOT_GROUP_ID=120363123456789@g.us
+==========================================================
+
+Disconnecting...
+✓ Done! You can now close this script.
+</code></pre>
+<h2>Configuring Your Bot</h2>
+<ol>
+<li>
+<p>Copy the group ID from the script output</p>
+</li>
+<li>
+<p>Edit your <code>.env</code> file:</p>
+<pre><code class="language-bash">nano .env
+</code></pre>
+</li>
+<li>
+<p>Add or update the <code>VOICEBOT_GROUP_ID</code> line:</p>
+<pre><code class="language-bash">VOICEBOT_GROUP_ID=120363123456789@g.us
+</code></pre>
+</li>
+<li>
+<p>Save and exit</p>
+</li>
+<li>
+<p>Start (or restart) your bot:</p>
+<pre><code class="language-bash">./start_bot.sh
+</code></pre>
+</li>
+</ol>
+<h2>Group ID Format</h2>
+<p>WhatsApp group IDs always follow this format:</p>
+<ul>
+<li><strong>Groups</strong>: <code>120363123456789@g.us</code></li>
+<li><strong>Individual chats</strong>: <code>1234567890@c.us</code> (your bot only processes groups)</li>
+</ul>
+<p>The <code>@g.us</code> suffix indicates it's a group chat.</p>
+<h2>Troubleshooting</h2>
+<h3>&quot;No groups found&quot;</h3>
+<ul>
+<li>Make sure you're a member of at least one WhatsApp group</li>
+<li>Try creating a test group with yourself and one other person</li>
+<li>Refresh by running the script again</li>
+</ul>
+<h3>&quot;Authentication failed&quot;</h3>
+<ol>
+<li>
+<p>Delete the authentication data:</p>
+<pre><code class="language-bash">rm -rf bot/.wwebjs_auth/
+</code></pre>
+</li>
+<li>
+<p>Run the script again:</p>
+<pre><code class="language-bash">./scripts/get_group_id.sh
+</code></pre>
+</li>
+<li>
+<p>Scan the new QR code</p>
+</li>
+</ol>
+<h3>&quot;Client error&quot; or Connection Issues</h3>
+<ol>
+<li>Check your internet connection</li>
+<li>Make sure WhatsApp Web is working in your browser</li>
+<li>Try logging out of all WhatsApp Web sessions on your phone and re-authenticate</li>
+</ol>
+<h3>Script Hangs or Takes Too Long</h3>
+<ol>
+<li>Press <code>Ctrl+C</code> to stop</li>
+<li>Delete session data:<pre><code class="language-bash">rm -rf bot/.wwebjs_auth/
+</code></pre>
+</li>
+<li>Try again</li>
+</ol>
+<h2>Manual Method (Alternative)</h2>
+<p>If the script doesn't work, you can find the group ID manually:</p>
+<ol>
+<li>
+<p>Start your main bot without setting <code>VOICEBOT_GROUP_ID</code>:</p>
+<pre><code class="language-bash"># Make sure VOICEBOT_GROUP_ID is empty in .env
+./start_bot.sh
+</code></pre>
+</li>
+<li>
+<p>Send any message to your target WhatsApp group</p>
+</li>
+<li>
+<p>Check the bot logs - it will print:</p>
+<pre><code>Incoming message from chat: 120363123456789@g.us (Group Name)
+</code></pre>
+</li>
+<li>
+<p>Copy the ID and add it to <code>.env</code></p>
+</li>
+</ol>
+<h2>Files Created</h2>
+<ul>
+<li><code>bot/get_group_id.js</code> - Node.js script that connects to WhatsApp</li>
+<li><code>scripts/get_group_id.sh</code> - Shell wrapper for easy execution</li>
+</ul>
+<h2>Notes</h2>
+<ul>
+<li>The script uses the same authentication session as your main bot</li>
+<li>If you've already authenticated the main bot, this script will reuse that session</li>
+<li>Running this script doesn't affect your main bot's operation</li>
+<li>The script automatically disconnects after listing groups</li>
+</ul>
+<h2>Next Steps</h2>
+<p>After getting your group ID:</p>
+<ol>
+<li>Configure <code>.env</code> with the group ID</li>
+<li>Test your bot: <code>./start_bot.sh</code></li>
+<li>Send a voice message to the configured group</li>
+<li>Verify the bot responds</li>
+</ol>
+<p>For more information, see the main README.md file.</p>
+</main>
+</body>
+</html>

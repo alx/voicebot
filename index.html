@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WhatsApp Voice Bot - whatsapp-web.js</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.6; color: #1a1a1a; }
+  nav { margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #ddd; }
+  nav a { margin-right: 1rem; text-decoration: none; color: #0969da; }
+  nav a:hover { text-decoration: underline; }
+  pre { background: #f6f8fa; padding: 1rem; overflow-x: auto; border-radius: 6px; }
+  code { background: #f6f8fa; padding: 0.2em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  pre code { background: none; padding: 0; }
+  h1, h2, h3 { line-height: 1.25; }
+  table { border-collapse: collapse; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; }
+  img { max-width: 100%; }
+</style>
+</head>
+<body>
+<nav><a href="index.html">Home</a>
+<a href="get_group_id.html">Finding Your WhatsApp Group ID</a></nav>
+<main><h1>WhatsApp Voice Bot - whatsapp-web.js</h1>
+<p>A WhatsApp voice bot that processes voice messages through an STT→LLM→TTS pipeline using whatsapp-web.js.</p>
+<blockquote>
+<p><strong>Note on whatsapp-web.js:</strong> this bot connects via <a href="https://wwebjs.dev/">whatsapp-web.js</a>, an unofficial client that automates WhatsApp Web. It is not sanctioned by WhatsApp/Meta and using it technically violates WhatsApp's Terms of Service — accounts <em>can</em> be banned for automated use, though this is commonly used for personal/small-group bots. Use at your own risk, ideally with a number you don't mind losing.</p>
+</blockquote>
+<h2>Architecture</h2>
+<p><strong>Hybrid Node.js + Python:</strong></p>
+<ul>
+<li><strong>Node.js</strong>: Handles WhatsApp connection (whatsapp-web.js library)</li>
+<li><strong>Python</strong>: Handles voice processing (STT→LLM→TTS pipeline)</li>
+</ul>
+<pre><code>WhatsApp → whatsapp-web.js → Node.js bot → Python subprocess → Response
+                (receives)     (processes)    (STT/LLM/TTS)     (sends back)
+</code></pre>
+<h2>Features</h2>
+<ul>
+<li>🎤 Receives voice messages from WhatsApp groups</li>
+<li>📝 Transcribes speech using faster-whisper (French by default)</li>
+<li>🤖 Generates responses using any OpenAI-compatible LLM server</li>
+<li>🔊 Synthesizes speech using Piper TTS</li>
+<li>✅ Sends 4 status updates: acknowledgment, transcription, LLM response, audio</li>
+<li>🔐 QR code authentication (once), session persisted</li>
+<li>❌ Graceful error handling with user notifications</li>
+<li>🚦 Oversized/overlong voice notes rejected before they hit the pipeline; only one message processed at a time; a hung pipeline subprocess is killed after a timeout</li>
+</ul>
+<h2>Prerequisites</h2>
+<ol>
+<li>
+<p><strong>Node.js</strong> (v18+)</p>
+<pre><code class="language-bash">node --version  # Check if installed
+</code></pre>
+</li>
+<li>
+<p><strong>Python 3.8-3.12</strong> (3.13 currently lacks a prebuilt wheel for a transitive dependency of <code>faster-whisper</code>; use <code>python3.11</code> or <code>python3.12</code> explicitly if your system default is newer)</p>
+<pre><code class="language-bash">python3 --version
+</code></pre>
+</li>
+<li>
+<p><strong>Chromium/Chrome</strong> (for whatsapp-web.js)</p>
+<pre><code class="language-bash">sudo apt install chromium-browser  # Ubuntu/Debian
+</code></pre>
+</li>
+<li>
+<p><strong>ffmpeg</strong> (for audio processing)</p>
+<pre><code class="language-bash">sudo apt install ffmpeg
+</code></pre>
+</li>
+<li>
+<p><strong>An OpenAI-compatible LLM server</strong> (e.g. <a href="https://github.com/ggerganov/llama.cpp">llama-server</a>, <a href="https://ollama.com/">ollama</a>, vLLM, LM Studio) reachable over HTTP. Defaults to <code>http://localhost:8081</code>; override with <code>LLM_BASE_URL</code> in <code>.env</code> if it runs elsewhere.</p>
+</li>
+<li>
+<p><strong>Piper TTS voice model</strong> — see step 2 below.</p>
+</li>
+</ol>
+<h2>Quick Start</h2>
+<h3>1. Install Dependencies</h3>
+<p><strong>Node.js:</strong></p>
+<pre><code class="language-bash">cd bot
+npm install
+</code></pre>
+<p><strong>Python:</strong></p>
+<pre><code class="language-bash">python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+</code></pre>
+<h3>2. Download a Piper voice model</h3>
+<p><code>piper-tts</code> (installed above) provides the <code>piper</code> CLI, but voices are downloaded separately. This project defaults to the French <code>fr_FR-siwis-medium</code> voice:</p>
+<pre><code class="language-bash">mkdir -p models/piper
+source .venv/bin/activate
+python -m piper.download_voices fr_FR-siwis-medium --download-dir models/piper
+</code></pre>
+<p>This creates <code>models/piper/fr_FR-siwis-medium.onnx</code> and its <code>.onnx.json</code> config, which <code>src/pipeline.py</code> expects. Browse other voices at the <a href="https://github.com/rhasspy/piper/blob/master/VOICES.md">Piper voices catalog</a> — see &quot;Customization&quot; below for using a different language/voice.</p>
+<h3>3. Configure Environment</h3>
+<pre><code class="language-bash"># Create .env from template
+cp .env.example .env
+
+# Edit .env (VOICEBOT_GROUP_ID is optional on first run; LLM_BASE_URL only needed
+# if your LLM server isn't at http://localhost:8081)
+nano .env
+</code></pre>
+<h3>4. Start the Bot</h3>
+<pre><code class="language-bash">./start_bot.sh
+</code></pre>
+<p><strong>On first run:</strong></p>
+<ol>
+<li>A QR code will appear in the terminal</li>
+<li>Open WhatsApp on your phone → Settings → Linked Devices</li>
+<li>Tap &quot;Link a Device&quot; and scan the QR code</li>
+<li>Wait for &quot;WhatsApp bot ready!&quot;</li>
+</ol>
+<p><strong>After authentication:</strong></p>
+<ul>
+<li>Session saved in <code>.wwebjs_auth/</code> (no QR code needed again)</li>
+<li>Send a test message to any group to see chat IDs in logs</li>
+<li>Update <code>.env</code> with your target group ID</li>
+<li>Restart bot</li>
+</ul>
+<h3>5. Find Your Group ID</h3>
+<p><strong>Option A: Use the Group ID Finder Script (Recommended)</strong></p>
+<p>Run the provided script to list all your groups:</p>
+<pre><code class="language-bash">./scripts/get_group_id.sh
+</code></pre>
+<p>This will display all your WhatsApp groups with their IDs. Copy the ID you want to use.</p>
+<p>See <a href="docs/GET_GROUP_ID.md">docs/GET_GROUP_ID.md</a> for detailed instructions.</p>
+<p><strong>Option B: Manual Method</strong></p>
+<p>Send a message to your target WhatsApp group. The bot will log:</p>
+<pre><code>Incoming message from chat: 120363123456789@g.us (Group Name)
+</code></pre>
+<p>Copy this ID to <code>.env</code>:</p>
+<pre><code class="language-bash">VOICEBOT_GROUP_ID=120363123456789@g.us
+</code></pre>
+<p>Restart the bot.</p>
+<h3>6. Test with Voice Message</h3>
+<ol>
+<li>Send a voice message to the configured group</li>
+<li>Bot will respond with 4 messages:
+<ul>
+<li>🎤 &quot;Message vocal reçu...&quot;</li>
+<li>📝 &quot;Transcription: {your speech}&quot;</li>
+<li>🤖 &quot;Réponse: {LLM answer}&quot;</li>
+<li>🔊 Voice audio file</li>
+</ul>
+</li>
+</ol>
+<h2>Project Structure</h2>
+<pre><code>voicebot/
+├── bot/                          # Node.js WhatsApp bot
+│   ├── index.js                  # Main bot entry point
+│   ├── voice-handler.js          # Voice message processing
+│   ├── subprocess-timeout.js     # Timeout/kill wrapper for the Python subprocess
+│   ├── queue.js                  # Serializes voice message processing
+│   ├── *.test.js                 # Node test suite (run: npm test)
+│   ├── config.js                 # Bot configuration
+│   ├── package.json              # Node dependencies
+│   └── .wwebjs_auth/             # Session data (auto-created)
+│
+├── src/                          # Python pipeline
+│   ├── pipeline.py                # VoicePipeline class
+│   ├── pipeline_cli.py            # CLI wrapper for Node integration
+│   ├── audio_converter.py         # Format conversion + validation
+│   └── config.py                  # Python config
+│
+├── tests/                        # Python test suite (run: pytest)
+├── tests/step1/                  # Manual example scripts (STT/TTS tried individually)
+├── docs/                         # Setup guides
+├── audio/                        # Runtime audio files (gitignored)
+├── models/                       # AI models (gitignored)
+├── LICENSE
+├── .env                          # Your local configuration (gitignored)
+└── start_bot.sh                  # Startup script
+</code></pre>
+<h2>Configuration</h2>
+<h3>Environment Variables (.env)</h3>
+<pre><code class="language-bash"># WhatsApp group ID (format: 120363123456789@g.us)
+VOICEBOT_GROUP_ID=
+
+# Optional: LLM server, if not http://localhost:8081
+# LLM_BASE_URL=http://localhost:8081
+# LLM_MODEL_NAME=your-model-name.gguf
+
+# Optional: max time (ms) to wait for the Python pipeline before killing it
+# PIPELINE_TIMEOUT_MS=90000
+
+# Optional: Python command override
+# PYTHON_CMD=python3
+
+# Optional: Override default logging level
+# LOG_LEVEL=INFO
+</code></pre>
+<h3>Status Messages</h3>
+<p>Edit <code>bot/config.js</code> to customize messages sent to users:</p>
+<pre><code class="language-javascript">STATUS_MESSAGES: {
+    received: &quot;🎤 Message vocal reçu, traitement en cours...&quot;,
+    transcription: &quot;📝 Transcription: {}&quot;,
+    llm_response: &quot;🤖 Réponse: {}&quot;,
+    error: &quot;❌ Erreur: {}&quot;
+}
+</code></pre>
+<h2>Customization</h2>
+<p>This bot defaults to French. To use another language, change these three places:</p>
+<ol>
+<li><code>src/config.py</code>: <code>STT_LANGUAGE</code> (or <code>None</code> for auto-detect) and <code>SYSTEM_PROMPT</code></li>
+<li><code>src/pipeline.py</code>: <code>synthesize_speech()</code>'s hardcoded Piper model path (<code>models/piper/fr_FR-siwis-medium.onnx</code>)</li>
+<li>Download the corresponding Piper voice for your target language (see step 2 in Quick Start)</li>
+</ol>
+<h2>Testing</h2>
+<h3>Automated tests</h3>
+<pre><code class="language-bash"># Python (pytest)
+source .venv/bin/activate
+pytest
+
+# Node (built-in test runner)
+cd bot
+npm test
+</code></pre>
+<h3>Test Python Pipeline Directly</h3>
+<pre><code class="language-bash">source .venv/bin/activate
+python -m src.pipeline_cli path/to/audio.wav --json
+# Expected output: JSON with transcription, llm_response, output_audio_path
+</code></pre>
+<h3>Manual component scripts</h3>
+<p><code>tests/step1/</code> has small standalone scripts for trying STT/TTS individually (not part of the automated suite):</p>
+<pre><code class="language-bash">cd tests/step1
+python create_sample_audio.py       # generates sample French WAV files
+python test_stt_only.py ../../audio/input/sample_greeting.wav
+</code></pre>
+<h2>Troubleshooting</h2>
+<h3>QR Code Not Showing</h3>
+<pre><code class="language-bash"># Check if Node.js and dependencies installed
+cd bot &amp;&amp; npm install
+
+# Try running directly
+cd bot &amp;&amp; node index.js
+</code></pre>
+<h3>&quot;Chromium not found&quot; Error</h3>
+<pre><code class="language-bash"># Install Chromium
+sudo apt install chromium-browser  # Ubuntu/Debian
+sudo yum install chromium          # CentOS/RHEL
+</code></pre>
+<h3>Session Expired / QR Code Again</h3>
+<pre><code class="language-bash"># Delete session data and re-authenticate
+rm -rf bot/.wwebjs_auth/
+./start_bot.sh
+</code></pre>
+<h3>Python Pipeline Fails</h3>
+<pre><code class="language-bash"># Test Python pipeline manually
+source .venv/bin/activate
+python -m src.pipeline_cli path/to/audio.wav --json
+
+# Check LLM connectivity (uses LLM_BASE_URL from .env, default localhost:8081)
+curl &quot;${LLM_BASE_URL:-http://localhost:8081}/health&quot;
+</code></pre>
+<h3>Bot Not Responding to Voice Messages</h3>
+<ol>
+<li>Check bot is running and authenticated</li>
+<li>Verify <code>VOICEBOT_GROUP_ID</code> is correct in <code>.env</code></li>
+<li>Send voice message to configured group (not individual chat)</li>
+<li>Check bot logs for errors</li>
+</ol>
+<h2>Performance</h2>
+<p>Approximate latency per voice message (French, small Whisper model, CPU STT/TTS):</p>
+<ul>
+<li>Download: ~0.5s</li>
+<li>STT: ~1.5-2s</li>
+<li>LLM: ~2-3s (depends on your LLM server/hardware)</li>
+<li>TTS: ~1s</li>
+<li>Upload + status: ~0.5s</li>
+<li><strong>Total: ~6-7 seconds per voice message</strong></li>
+</ul>
+<h2>Known Limitations</h2>
+<ul>
+<li><strong>No persistent model</strong>: each voice message spawns a new Python subprocess that reloads the Whisper model from disk. This adds latency vs. a long-running worker process — a reasonable target for a future improvement, not implemented here to keep the architecture simple.</li>
+<li><strong>Single-instance, no horizontal scaling</strong>: one bot process, one WhatsApp session. Not designed for multiple concurrent group deployments from one codebase instance.</li>
+<li><strong>No per-user rate limiting</strong>: anyone in the configured group can trigger the pipeline; there's no cooldown or quota per sender, only the global one-at-a-time queue.</li>
+<li><strong>Unofficial WhatsApp client</strong>: see the note at the top of this README.</li>
+</ul>
+<h2>Development</h2>
+<h3>Run with Auto-Reload</h3>
+<pre><code class="language-bash">cd bot
+npm run dev  # Watches for file changes
+</code></pre>
+<h3>Debug Mode</h3>
+<pre><code class="language-bash"># Enable verbose logging
+LOG_LEVEL=DEBUG ./start_bot.sh
+</code></pre>
+<h2>Support</h2>
+<p>For issues:</p>
+<ol>
+<li>Check logs in terminal</li>
+<li>Test Python pipeline: <code>python -m src.pipeline_cli path/to/audio.wav --json</code></li>
+<li>Verify Node.js and Python both working</li>
+<li>Check <code>.env</code> configuration</li>
+</ol>
+<h2>License</h2>
+<p>MIT — see <a href="LICENSE">LICENSE</a>.</p>
+<h2>Acknowledgments</h2>
+<ul>
+<li><strong>whatsapp-web.js</strong>: WhatsApp Web client library (https://wwebjs.dev/)</li>
+<li><strong>faster-whisper</strong>: Fast STT (https://github.com/guillaumekln/faster-whisper)</li>
+<li><strong>Piper TTS</strong>: Fast TTS (https://github.com/rhasspy/piper)</li>
+</ul>
+</main>
+</body>
+</html>
