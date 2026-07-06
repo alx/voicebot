@@ -1,0 +1,9 @@
+{
+  "name": "docsbuild",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Static site build tool for the project's GitHub Pages documentation",
+  "dependencies": {
+    "markdown-it": "^14.1.0"
+  }
+}

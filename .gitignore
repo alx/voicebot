@@ -46,3 +46,6 @@ models/
 
 # Outputs
 audio/output/
+
+# Generated docs site (built by docsbuild/, deployed to gh-pages branch)
+_site/
