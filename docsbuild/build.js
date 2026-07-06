@@ -9,6 +9,13 @@ const TEMPLATE_PATH = path.join(__dirname, 'template.html');
 
 const md = new MarkdownIt({ html: true });
 
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function slugify(filename) {
   return filename.replace(/\.md$/i, '').toLowerCase() + '.html';
 }
@@ -45,7 +52,7 @@ function buildPages() {
 function buildNav(pages) {
   return pages
     .map((page) => {
-      const label = page.slug === 'index.html' ? 'Home' : page.title;
+      const label = page.slug === 'index.html' ? 'Home' : escapeHtml(page.title);
       return `<a href="${page.slug}">${label}</a>`;
     })
     .join('\n');
@@ -62,9 +69,9 @@ function main() {
   for (const page of pages) {
     const content = md.render(page.source);
     const html = template
-      .replace('{{TITLE}}', page.title)
-      .replace('{{NAV}}', nav)
-      .replace('{{CONTENT}}', content);
+      .replace('{{TITLE}}', () => escapeHtml(page.title))
+      .replace('{{NAV}}', () => nav)
+      .replace('{{CONTENT}}', () => content);
     fs.writeFileSync(path.join(OUTPUT_DIR, page.slug), html, 'utf8');
   }
 
