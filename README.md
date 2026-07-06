@@ -166,6 +166,13 @@ voicebot/
 │   ├── audio_converter.py         # Format conversion + validation
 │   └── config.py                  # Python config
 │
+├── st-bridge/                    # Optional: SillyTavern persona bridge (see docs/SILLYTAVERN_SETUP.md)
+│   ├── index.js                   # Entry point: launches browser + HTTP server
+│   ├── chat-client.js             # Chat orchestration (submit + poll for reply)
+│   ├── puppeteer-adapter.js       # Real SillyTavern DOM glue
+│   ├── server.js                  # HTTP API (/reply, /health)
+│   └── config.js                  # st-bridge configuration
+│
 ├── tests/                        # Python test suite (run: pytest)
 ├── tests/step1/                  # Manual example scripts (STT/TTS tried individually)
 ├── docs/                         # Setup guides
@@ -218,6 +225,13 @@ This bot defaults to French. To use another language, change these three places:
 1. `src/config.py`: `STT_LANGUAGE` (or `None` for auto-detect) and `SYSTEM_PROMPT`
 2. `src/pipeline.py`: `synthesize_speech()`'s hardcoded Piper model path (`models/piper/fr_FR-siwis-medium.onnx`)
 3. Download the corresponding Piper voice for your target language (see step 2 in Quick Start)
+
+## Optional: SillyTavern Persona Route
+
+Instead of the default direct LLM call, the pipeline can route replies
+through a real chat persona defined in [SillyTavern](https://github.com/SillyTavern/SillyTavern),
+with multi-turn conversation memory. See
+[docs/SILLYTAVERN_SETUP.md](docs/SILLYTAVERN_SETUP.md) for setup instructions.
 
 ## Testing
 
