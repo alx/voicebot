@@ -70,6 +70,17 @@ def test_query_sillytavern_raises_on_malformed_json():
             pipeline.query_sillytavern("Salut")
 
 
+def test_query_sillytavern_raises_on_non_string_reply():
+    pipeline = _make_pipeline()
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"reply": None}
+    mock_response.raise_for_status.return_value = None
+
+    with patch("src.pipeline.requests.post", return_value=mock_response):
+        with pytest.raises(VoicePipelineError, match="Malformed SillyTavern bridge response"):
+            pipeline.query_sillytavern("Salut")
+
+
 def test_run_pipeline_dispatches_to_sillytavern_when_configured(tmp_path):
     input_wav = tmp_path / "input.wav"
     input_wav.write_bytes(b"fake audio")

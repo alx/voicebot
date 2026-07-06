@@ -206,7 +206,7 @@ class VoicePipeline:
             data = response.json()
             try:
                 reply = data["reply"].strip()
-            except (KeyError, TypeError) as e:
+            except (KeyError, TypeError, AttributeError) as e:
                 raise VoicePipelineError(f"Malformed SillyTavern bridge response: {e}")
 
             if not reply:
