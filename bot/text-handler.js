@@ -3,6 +3,22 @@ import config from './config.js';
 import { runWithTimeout } from './subprocess-timeout.js';
 
 /**
+ * Build the argv for invoking the Python pipeline CLI in --text mode.
+ *
+ * The text value is packed into a single `--text=<value>` token rather than
+ * passed as two separate argv entries (`--text`, value). This is required
+ * because Node's `spawn` (no shell) hands the array straight through as
+ * argv, so a value that itself starts with a dash (e.g. the emoticon `-_-`)
+ * would otherwise be misparsed by Python's argparse as a new option flag
+ * instead of the value of `--text`.
+ * @param {string} text - The message body to reply to
+ * @returns {string[]} argv array (excluding the interpreter/command itself)
+ */
+export function buildTextPipelineArgs(text) {
+    return ['-m', 'src.pipeline_cli', `--text=${text}`, '--json'];
+}
+
+/**
  * Call the Python pipeline in --text mode as a subprocess.
  * @param {string} text - The message body to reply to
  * @param {string} logPrefix - Log prefix for debugging
@@ -11,7 +27,7 @@ import { runWithTimeout } from './subprocess-timeout.js';
 async function callTextPipeline(text, logPrefix = '') {
     const { stdout } = await runWithTimeout(
         config.PYTHON_CMD,
-        ['-m', 'src.pipeline_cli', '--text', text, '--json'],
+        buildTextPipelineArgs(text),
         { cwd: path.join(path.dirname(new URL(import.meta.url).pathname), '..') },
         config.PIPELINE_TIMEOUT_MS,
         {

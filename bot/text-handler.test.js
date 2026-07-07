@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { handleTextMessage } from './text-handler.js';
+import { handleTextMessage, buildTextPipelineArgs } from './text-handler.js';
 import { createMessageTracker } from './message-tracker.js';
 
 function makeFakeChat() {
@@ -79,4 +79,25 @@ test('registers the sent reply with the tracker to avoid echo loops', async () =
     });
 
     assert.equal(tracker.wasSent('sent-1'), true);
+});
+
+test('packs dash-prefixed text into a single --text=<value> argv token', () => {
+    // Regression test: node's spawn (no shell) passes each array element as
+    // its own argv token. If the text value were a separate token from
+    // `--text`, Python's argparse would misparse a dash-leading body like
+    // `-_-` as a new option flag instead of the value of --text, causing the
+    // subprocess to exit with code 2 for perfectly benign input.
+    const args = buildTextPipelineArgs('-_-');
+
+    assert.ok(
+        args.includes('--text=-_-'),
+        `expected args to contain the single token "--text=-_-", got ${JSON.stringify(args)}`
+    );
+    assert.equal(args.includes('--text'), false);
+    assert.equal(args.includes('-_-'), false);
+});
+
+test('packs ordinary text into a single --text=<value> argv token', () => {
+    const args = buildTextPipelineArgs('Quel temps fait-il ?');
+    assert.ok(args.includes('--text=Quel temps fait-il ?'));
 });
