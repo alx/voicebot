@@ -11,6 +11,8 @@
   "license": "MIT",
   "dependencies": {
     "dotenv": "^16.0.3",
+    "ics": "^3.12.0",
+    "node-ical": "^0.26.1",
     "puppeteer": "^23.0.0"
   }
 }
