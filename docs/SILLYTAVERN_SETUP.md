@@ -84,6 +84,9 @@ escape that directory, is rejected):
 | `read_file <path>` | reads a file | path must resolve inside `assistant-data/` |
 | `write_file <path> <content>` | writes a file | path must resolve inside `assistant-data/`, content size-capped |
 | `search_files <pattern> <path>` | `grep -rn <pattern> <path>` | path must resolve inside `assistant-data/` |
+| `add_event <date> <heure> <titre>` | ajoute un événement | date `AAAA-MM-JJ`, heure `HH:MM`, titre non vide (≤ 200 caractères) ; stocké dans `assistant-data/calendar.ics` |
+| `list_events <today\|week\|all>` | liste les événements | `today` = aujourd'hui, `week` = les 7 prochains jours, `all` = tout, triés par date |
+| `remove_event <id>` | supprime un événement | `id` = les 8 premiers caractères affichés par `list_events` |
 
 Trico's replies are also passed through a family-friendly word blocklist at
 `st-bridge/blocklist.json` — edit that file (a plain JSON array of strings) to
