@@ -1,53 +1,6 @@
-import path from 'path';
 import config from './config.js';
-import { runWithTimeout } from './subprocess-timeout.js';
-
-/**
- * Build the argv for invoking the Python pipeline CLI in --text mode.
- *
- * The text value is packed into a single `--text=<value>` token rather than
- * passed as two separate argv entries (`--text`, value). This is required
- * because Node's `spawn` (no shell) hands the array straight through as
- * argv, so a value that itself starts with a dash (e.g. the emoticon `-_-`)
- * would otherwise be misparsed by Python's argparse as a new option flag
- * instead of the value of `--text`.
- * @param {string} text - The message body to reply to
- * @returns {string[]} argv array (excluding the interpreter/command itself)
- */
-export function buildTextPipelineArgs(text) {
-    return ['-m', 'src.pipeline_cli', `--text=${text}`, '--json'];
-}
-
-/**
- * Call the Python pipeline in --text mode as a subprocess.
- * @param {string} text - The message body to reply to
- * @param {string} logPrefix - Log prefix for debugging
- * @returns {Promise<{llm_response: string, timing: object}>}
- */
-async function callTextPipeline(text, logPrefix = '') {
-    const { stdout } = await runWithTimeout(
-        config.PYTHON_CMD,
-        buildTextPipelineArgs(text),
-        { cwd: path.join(path.dirname(new URL(import.meta.url).pathname), '..') },
-        config.PIPELINE_TIMEOUT_MS,
-        {
-            onStderr: (chunk) => console.error(`${logPrefix} [Python stderr]:`, chunk.trim())
-        }
-    );
-
-    let result;
-    try {
-        result = JSON.parse(stdout);
-    } catch (parseError) {
-        throw new Error(`Failed to parse pipeline output: ${parseError.message}\nOutput: ${stdout}`);
-    }
-
-    if (result.error) {
-        throw new Error(result.error);
-    }
-
-    return result;
-}
+import { runTextPipeline } from './pipeline-client.js';
+import { notifyError } from './notify-error.js';
 
 /**
  * Handle an incoming text message: reject if too long, otherwise run it
@@ -59,11 +12,11 @@ async function callTextPipeline(text, logPrefix = '') {
  * @param {{ maxChars?: number, runPipeline?: Function }} [deps] - Injectable overrides for testing
  */
 export async function handleTextMessage(msg, chat, client, tracker, deps = {}) {
+    const logPrefix = `[${msg.id.id.substring(0, 8)}]`;
     const maxChars = deps.maxChars ?? config.TEXT_MAX_CHARS;
-    const runPipeline = deps.runPipeline ?? ((text) => callTextPipeline(text, `[${msg.id.id.substring(0, 8)}]`));
+    const runPipeline = deps.runPipeline ?? ((text) => runTextPipeline(text, logPrefix));
 
     const body = msg.body.trim();
-    const logPrefix = `[${msg.id.id.substring(0, 8)}]`;
 
     if (body.length > maxChars) {
         console.log(`${logPrefix} Text message rejected: ${body.length} chars (max ${maxChars})`);
@@ -78,15 +31,6 @@ export async function handleTextMessage(msg, chat, client, tracker, deps = {}) {
         await tracker.sendTracked(chat, result.llm_response);
         console.log(`${logPrefix} ✓ Complete`);
     } catch (error) {
-        console.error(`${logPrefix} ✗ Error:`, error.message);
-
-        if (config.ENABLE_ERROR_NOTIFICATIONS) {
-            const errorMsg = config.STATUS_MESSAGES.error.replace('{}', error.message);
-            try {
-                await tracker.sendTracked(chat, errorMsg);
-            } catch (sendError) {
-                console.error(`${logPrefix} Failed to send error notification:`, sendError.message);
-            }
-        }
+        await notifyError(chat, tracker, error, logPrefix);
     }
 }
