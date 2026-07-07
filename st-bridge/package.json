@@ -9,6 +9,9 @@
     "test": "node --test"
   },
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "dotenv": "^16.0.3",
     "ics": "^3.12.0",
