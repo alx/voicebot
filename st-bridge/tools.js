@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 import { ToolError } from './tool-error.js';
+import { addEvent, listEvents, removeEvent } from './calendar.js';
 
 export { ToolError } from './tool-error.js';
 
@@ -130,6 +131,10 @@ export const TOOLS = {
         const target = await resolveScopedPath(config.root, rest[0], { mustExist: true });
         return truncate(await execFileCapture('grep', ['-rn', pattern, target], timeoutMs));
     },
+
+    add_event: addEvent,
+    list_events: listEvents,
+    remove_event: removeEvent,
 };
 
 export async function runTool(name, args, config, timeoutMs) {

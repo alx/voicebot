@@ -135,3 +135,29 @@ test('list_dir rejects a path escaping the root', async () => {
         ToolError
     );
 });
+
+async function makeCalendarRoot() {
+    return fs.mkdtemp(path.join(os.tmpdir(), 'trico-tools-calendar-'));
+}
+
+test('runTool dispatches add_event to the calendar module', async () => {
+    const root = await makeCalendarRoot();
+    const result = await runTool('add_event', ['2026-07-10', '14:00', 'Dentiste'], { root }, 5000);
+    assert.match(result, /Événement ajouté : Dentiste/);
+});
+
+test('runTool dispatches list_events to the calendar module', async () => {
+    const root = await makeCalendarRoot();
+    await runTool('add_event', ['2026-07-10', '14:00', 'Dentiste'], { root }, 5000);
+    const result = await runTool('list_events', ['all'], { root }, 5000);
+    assert.match(result, /Dentiste/);
+});
+
+test('runTool dispatches remove_event to the calendar module', async () => {
+    const root = await makeCalendarRoot();
+    await runTool('add_event', ['2026-07-10', '14:00', 'Dentiste'], { root }, 5000);
+    const listing = await runTool('list_events', ['all'], { root }, 5000);
+    const idMatch = listing.match(/\[([0-9a-f]{8})\]/);
+    const result = await runTool('remove_event', [idMatch[1]], { root }, 5000);
+    assert.match(result, /Événement supprimé : Dentiste/);
+});
