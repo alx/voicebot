@@ -50,6 +50,45 @@ bot's own `LLM_BASE_URL` — though it can point at the exact same server):
    persona `st-bridge` will talk to.
 4. Save the character.
 
+### Using the built-in Trico persona (with local tool support)
+
+This repo ships a ready-to-import character, **Trico** — a French-only,
+family-friendly assistant that can also run a small whitelisted set of real
+local Linux commands. To use it instead of creating your own character:
+
+1. In SillyTavern's Character Management panel, use "Import Character" and
+   select `st-bridge/personas/trico.json` from this repo.
+2. Continue to step 4 below to start a chat with Trico.
+
+To enable Trico's tool support, add to `st-bridge/.env`:
+
+```bash
+ST_BRIDGE_TOOLS_ENABLED=true
+ST_BRIDGE_TOOL_ROOT=../assistant-data
+ST_BRIDGE_TOOL_TIMEOUT_MS=10000
+```
+
+Trico can only touch files inside `assistant-data/` at the repo root, and can
+only run the following whitelisted commands (anything else, or any attempt to
+escape that directory, is rejected):
+
+| Tool | What it runs | Notes |
+|---|---|---|
+| `disk_usage` | `df -h` | |
+| `memory` | `free -h` | |
+| `uptime` | `uptime` | |
+| `datetime` | `date` | |
+| `local_ip` | `ip addr show` | |
+| `ping <host>` | `ping -c 3 <host>` | host must be a plain hostname/IP, no shell metacharacters |
+| `list_dir <path>` | `ls -la <path>` | path must resolve inside `assistant-data/` |
+| `read_file <path>` | reads a file | path must resolve inside `assistant-data/` |
+| `write_file <path> <content>` | writes a file | path must resolve inside `assistant-data/`, content size-capped |
+| `search_files <pattern> <path>` | `grep -rn <pattern> <path>` | path must resolve inside `assistant-data/` |
+
+Trico's replies are also passed through a family-friendly word blocklist at
+`st-bridge/blocklist.json` — edit that file (a plain JSON array of strings) to
+add or remove blocked words.
+
 ## 4. Start a chat with the character
 
 Click the character in the character list to open a chat with them. This is
