@@ -26,6 +26,11 @@ STT_COMPUTE_TYPE = "int8"  # Options: float16, int8, float32
 STT_DEVICE = "cpu"        # Using CPU due to cuDNN issues
 STT_BEAM_SIZE = 5         # Accuracy vs speed tradeoff (1-10)
 STT_DOWNLOAD_ROOT = os.path.join(MODELS_DIR, "faster-whisper")
+# Plain local model directory (config.json/model.bin/tokenizer.json/vocabulary.txt),
+# used instead of STT_MODEL_SIZE/STT_DOWNLOAD_ROOT when present. Bypasses
+# huggingface_hub's online cache-freshness check entirely, which can hang for
+# minutes re-verifying an already-complete download over a slow connection.
+STT_LOCAL_MODEL_PATH = os.path.join(MODELS_DIR, "faster-whisper-small")
 
 # LLM Configuration (llama-server / any OpenAI-compatible chat completions API)
 # Point this at your own LLM server, e.g. llama-server, ollama, vLLM, LM Studio

@@ -10,8 +10,9 @@ import { runWithTimeout } from './subprocess-timeout.js';
  * @param {Message} msg - WhatsApp message object
  * @param {Chat} chat - WhatsApp chat object
  * @param {Client} client - WhatsApp client
+ * @param {Set<string>} sentReplyIds - IDs of bot-sent voice replies to ignore on echo
  */
-export async function handleVoiceMessage(msg, chat, client) {
+export async function handleVoiceMessage(msg, chat, client, sentReplyIds) {
     const messageId = msg.id.id.substring(0, 8);
     const logPrefix = `[${messageId}]`;
 
@@ -69,9 +70,12 @@ export async function handleVoiceMessage(msg, chat, client) {
         // Stage 6: Send voice audio
         console.log(`${logPrefix} Sending voice response...`);
         const audioMedia = MessageMedia.fromFilePath(result.output_audio_path);
-        await chat.sendMessage(audioMedia, {
+        const sentReply = await chat.sendMessage(audioMedia, {
             sendAudioAsVoice: true
         });
+        if (sentReplyIds && sentReply?.id?.id) {
+            sentReplyIds.add(sentReply.id.id);
+        }
 
         const totalTime = result.timing?.total || 'unknown';
         console.log(`${logPrefix} ✓ Complete (${totalTime}s)`);

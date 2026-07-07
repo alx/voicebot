@@ -30,6 +30,11 @@ const client = new Client({
 
 const voiceQueue = createQueue();
 
+// IDs of voice replies the bot itself sent, so message_create (which fires for
+// fromMe messages too) doesn't re-queue the bot's own audio reply as a new
+// incoming voice message.
+const sentReplyIds = new Set();
+
 // QR code event - scan with WhatsApp to authenticate
 client.on('qr', (qr) => {
     console.log('\n' + '='.repeat(60));
@@ -82,11 +87,20 @@ client.on('loading_screen', (percent, message) => {
 });
 
 // Message event - main handler
-client.on('message', async (msg) => {
+// Uses message_create (not message) because whatsapp-web.js never emits
+// 'message' for messages sent by the linked account itself (fromMe), which
+// is the case whenever the bot owner tests it from their own phone.
+client.on('message_create', async (msg) => {
     try {
         // Get chat information
         const chat = await msg.getChat();
         const chatId = chat.id._serialized;
+
+        // Skip the bot's own voice reply echoed back via message_create
+        if (sentReplyIds.has(msg.id.id)) {
+            sentReplyIds.delete(msg.id.id);
+            return;
+        }
 
         // Log all incoming messages for debugging (helps find group ID)
         if (!config.TARGET_GROUP_ID) {
@@ -102,13 +116,13 @@ client.on('message', async (msg) => {
         // Filter: only process voice messages (ptt = push-to-talk)
         if (msg.hasMedia && msg.type === 'ptt') {
             console.log(`\nVoice message received! Queued for processing...`);
-            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client)).catch((error) => {
+            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client, sentReplyIds)).catch((error) => {
                 console.error(`Unexpected error in queued voice message handler:`, error);
             });
         } else if (msg.hasMedia && msg.type === 'audio') {
             // Also handle regular audio messages
             console.log(`\nAudio message received! Queued for processing...`);
-            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client)).catch((error) => {
+            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client, sentReplyIds)).catch((error) => {
                 console.error(`Unexpected error in queued voice message handler:`, error);
             });
         }

@@ -39,15 +39,27 @@ class VoicePipeline:
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
         # Initialize STT
-        logger.info(f"\n[1/3] Loading STT: faster-whisper ({self.config.STT_MODEL_SIZE})")
+        local_model_path = getattr(self.config, "STT_LOCAL_MODEL_PATH", None)
+        use_local_path = local_model_path and os.path.isdir(local_model_path)
+        logger.info(
+            f"\n[1/3] Loading STT: faster-whisper "
+            f"({local_model_path if use_local_path else self.config.STT_MODEL_SIZE})"
+        )
         start = time.time()
         try:
-            self.stt_model = WhisperModel(
-                model_size_or_path=self.config.STT_MODEL_SIZE,
-                device=self.config.STT_DEVICE,
-                compute_type=self.config.STT_COMPUTE_TYPE,
-                download_root=self.config.STT_DOWNLOAD_ROOT
-            )
+            if use_local_path:
+                self.stt_model = WhisperModel(
+                    model_size_or_path=local_model_path,
+                    device=self.config.STT_DEVICE,
+                    compute_type=self.config.STT_COMPUTE_TYPE,
+                )
+            else:
+                self.stt_model = WhisperModel(
+                    model_size_or_path=self.config.STT_MODEL_SIZE,
+                    device=self.config.STT_DEVICE,
+                    compute_type=self.config.STT_COMPUTE_TYPE,
+                    download_root=self.config.STT_DOWNLOAD_ROOT
+                )
             logger.info(f"   ✓ Loaded in {time.time() - start:.2f}s")
         except Exception as e:
             logger.error(f"   ✗ Failed to load STT model: {e}")

@@ -33,7 +33,7 @@ WhatsApp → whatsapp-web.js → Node.js bot → Python subprocess → Response
    node --version  # Check if installed
    ```
 
-2. **Python 3.8-3.12** (3.13 currently lacks a prebuilt wheel for a transitive dependency of `faster-whisper`; use `python3.11` or `python3.12` explicitly if your system default is newer)
+2. **Python 3.8-3.12** (3.13 currently lacks a prebuilt wheel for a transitive dependency of `faster-whisper`; use `python3.11` or `python3.12` explicitly if your system default is newer). [uv](https://docs.astral.sh/uv/) can provision an isolated 3.12 interpreter for you even if your system Python is 3.13 — see step 1 below.
    ```bash
    python3 --version
    ```
@@ -60,26 +60,25 @@ WhatsApp → whatsapp-web.js → Node.js bot → Python subprocess → Response
 ```bash
 cd bot
 npm install
+cd ..
 ```
 
-**Python:**
+**Python** (using [uv](https://docs.astral.sh/uv/); substitute plain `python3 -m venv .venv` + `pip install` if you don't have uv and your system Python is already 3.8-3.12):
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+uv venv --python 3.12 .venv
+uv pip install -r requirements.txt --python .venv/bin/python
 ```
 
-### 2. Download a Piper voice model
-
-`piper-tts` (installed above) provides the `piper` CLI, but voices are downloaded separately. This project defaults to the French `fr_FR-siwis-medium` voice:
+### 2. Download the AI models
 
 ```bash
-mkdir -p models/piper
-source .venv/bin/activate
-python -m piper.download_voices fr_FR-siwis-medium --download-dir models/piper
+./scripts/download_models.sh
 ```
 
-This creates `models/piper/fr_FR-siwis-medium.onnx` and its `.onnx.json` config, which `src/pipeline.py` expects. Browse other voices at the [Piper voices catalog](https://github.com/rhasspy/piper/blob/master/VOICES.md) — see "Customization" below for using a different language/voice.
+This downloads two things into project-local directories (both gitignored, so this only needs to run once per machine):
+
+- **Piper TTS voice** (`fr_FR-siwis-medium`) into `models/piper/` — a small, fast download. Browse other voices at the [Piper voices catalog](https://github.com/rhasspy/piper/blob/master/VOICES.md); see "Customization" below to use a different language/voice.
+- **faster-whisper STT model** (`small`) into `models/faster-whisper-small/` as a plain directory (not the shared `huggingface_hub` cache). `model.bin` is ~460MB, so this can take several minutes on a slow connection — let it run to completion. `src/pipeline.py` loads directly from this local path when present, which is deliberate: `huggingface_hub`'s cache-freshness check has been observed to falsely flag an already-complete download as incomplete and then hang for minutes re-verifying/re-fetching it over the network on *every* pipeline run, blowing past the 90s subprocess timeout (`PIPELINE_TIMEOUT_MS`) each time. Loading from a plain local directory skips that check entirely.
 
 ### 3. Configure Environment
 
@@ -309,6 +308,11 @@ curl "${LLM_BASE_URL:-http://localhost:8081}/health"
 2. Verify `VOICEBOT_GROUP_ID` is correct in `.env`
 3. Send voice message to configured group (not individual chat)
 4. Check bot logs for errors
+5. If you're testing by sending the voice note from the same phone number that's linked as the bot, note that `bot/index.js` listens on whatsapp-web.js's `message_create` event specifically because the plain `message` event never fires for messages sent by the linked account itself (`fromMe`). If logs show nothing at all for your test message, this is the first thing to check.
+
+### Pipeline Times Out Even Though the STT Model Is Downloaded
+
+If `bot/index.js` logs `Process timed out after 90000ms: python -m src.pipeline_cli ...` on every voice message, and `[Python stderr]` shows it stuck after `Loading STT: faster-whisper (small)`, `huggingface_hub` is likely stuck re-verifying the cached model over the network (see step 2 of Quick Start above). Confirm the model exists at `models/faster-whisper-small/model.bin`; if `./scripts/download_models.sh` hasn't been run or was interrupted, re-run it and let it finish before starting the bot.
 
 ## Performance
 
