@@ -29,9 +29,15 @@ def main():
     parser = argparse.ArgumentParser(
         description='Voice Pipeline CLI - STT->LLM->TTS processing'
     )
-    parser.add_argument(
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
         'audio_file',
+        nargs='?',
         help='Input audio file path (OGG, WAV, MP3, etc.)'
+    )
+    input_group.add_argument(
+        '--text',
+        help='Text message to reply to (skips STT, text-only reply)'
     )
     parser.add_argument(
         '--json',
@@ -58,6 +64,37 @@ def main():
         logging.getLogger().setLevel(logging.WARNING)
 
     try:
+        if args.text:
+            if len(args.text) > config.TEXT_MAX_CHARS:
+                raise ValueError(
+                    f"Text message too long: {len(args.text)} chars "
+                    f"(max {config.TEXT_MAX_CHARS})"
+                )
+
+            logger.info(f"Processing text message ({len(args.text)} chars)")
+
+            pipeline = VoicePipeline(config)
+            result = pipeline.run_text_pipeline(args.text)
+
+            if args.json:
+                json_output = {
+                    "success": True,
+                    "llm_response": result["llm_response"],
+                    "timing": result["timing"]
+                }
+                print(json.dumps(json_output))
+            else:
+                print("\n" + "=" * 60)
+                print("Text Pipeline Result:")
+                print("=" * 60)
+                print(f"LLM Response: {result['llm_response']}")
+                print(f"\nTiming:")
+                print(f"  LLM: {result['timing']['llm']:.2f}s")
+                print(f"  Total: {result['timing']['total']:.2f}s")
+                print("=" * 60 + "\n")
+
+            sys.exit(0)
+
         # Validate input file exists
         audio_path = Path(args.audio_file)
         if not audio_path.exists():
