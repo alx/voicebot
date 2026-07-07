@@ -1,5 +1,14 @@
 """
-Configuration file for Voice Bot STT->LLM->TTS Pipeline
+Configuration for the Python STT->LLM->TTS pipeline.
+
+Config scope: pipeline behavior only — model selection, LLM endpoints,
+audio limits. WhatsApp-side settings live in bot/config.js; SillyTavern
+bridge settings live in st-bridge/config.js.
+
+Deliberately duplicated with bot/config.js: TEXT_MAX_CHARS (same
+TEXT_MAX_CHARS env var on both sides), so Node can reject oversized
+messages without spawning Python while Python still enforces the limit
+for direct CLI use.
 """
 import os
 from dotenv import load_dotenv

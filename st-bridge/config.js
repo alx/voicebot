@@ -1,3 +1,7 @@
+// Config scope: SillyTavern bridge only — server port, ST connection,
+// reply timeouts, and tool-calling settings. WhatsApp-side settings live
+// in ../bot/config.js; pipeline settings live in ../src/config.py.
+
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
