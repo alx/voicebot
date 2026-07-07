@@ -3,6 +3,7 @@ Voice Pipeline - STT->LLM->TTS with structured output
 Refactored from test_pipeline.py for production use
 """
 import os
+import re
 import time
 import subprocess
 import logging
@@ -18,6 +19,22 @@ logger = logging.getLogger(__name__)
 class VoicePipelineError(Exception):
     """Custom exception for pipeline errors"""
     pass
+
+
+_ACTION_TEXT_PATTERN = re.compile(r'\*[^*]+\*')
+
+
+def _strip_narration(text: str) -> str:
+    """
+    Remove *action/narration* asides some roleplay personas still emit despite
+    being instructed to reply with spoken dialogue only. Safety net for the
+    SillyTavern route on top of the persona-level instruction (chat Author's
+    Note / variables) — not a substitute for it, since dialogue that isn't
+    asterisk-wrapped passes through untouched.
+    """
+    cleaned = _ACTION_TEXT_PATTERN.sub('', text)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned or text
 
 
 class VoicePipeline:
@@ -223,6 +240,8 @@ class VoicePipeline:
 
             if not reply:
                 raise VoicePipelineError("Empty SillyTavern reply")
+
+            reply = _strip_narration(reply)
 
             elapsed = time.time() - start
             logger.info(f"[LLM] ✓ SillyTavern reply in {elapsed:.2f}s")

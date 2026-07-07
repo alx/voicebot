@@ -94,6 +94,29 @@ ST_BRIDGE_URL=http://localhost:8091
 Restart the bot (`./start_bot.sh`). Voice messages will now be answered by
 the SillyTavern persona instead of the direct LLM call.
 
+## 7. Taming verbose roleplay replies
+
+Voice replies get read aloud, so scene narration, `*action text*`, and
+paragraph-length prose don't translate well — you want short, spoken
+dialogue only. Two things work together to keep replies that way:
+
+- **Chat-level instruction (primary fix).** If your character/preset was
+  built for immersive roleplay (e.g. narrative-focused Chat Completion
+  presets like "Marinara's Spaghetti Recipe"), it likely has a per-chat
+  `variables.length` (or similar) telling the model to "expand with
+  paragraphs" — that's usually the actual source of verbosity, more so than
+  the character card itself. In SillyTavern, open the chat and set an
+  **Author's Note** (top toolbar → note icon) instructing something like:
+  *"Reply with spoken dialogue only, one to two short sentences, no
+  narration, actions, or scene/environment descriptions."* If the active
+  preset exposes a response-length toggle/variable, set that to something
+  equally terse — it's usually the more direct lever than the Author's Note.
+- **Code-level safety net.** `src/pipeline.py`'s `_strip_narration()` strips
+  any `*action text*` segments from every SillyTavern reply before TTS, in
+  case the persona still slips into narration occasionally. This is a
+  fallback, not a fix — it can't repair prose that isn't asterisk-wrapped,
+  so the chat-level instruction above is what actually controls verbosity.
+
 ## Notes and limitations
 
 - **One shared conversation.** All voice messages in the configured WhatsApp
