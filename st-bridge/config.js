@@ -12,4 +12,7 @@ export default {
     ST_CHARACTER_NAME: process.env.ST_CHARACTER_NAME || '',
     USER_DATA_DIR: path.join(__dirname, '.browser-data'),
     REPLY_TIMEOUT_MS: parseInt(process.env.ST_REPLY_TIMEOUT_MS || '60000', 10),
+    TOOLS_ENABLED: process.env.ST_BRIDGE_TOOLS_ENABLED === 'true',
+    TOOL_ROOT: path.resolve(__dirname, process.env.ST_BRIDGE_TOOL_ROOT || '../assistant-data'),
+    TOOL_TIMEOUT_MS: parseInt(process.env.ST_BRIDGE_TOOL_TIMEOUT_MS || '10000', 10),
 };

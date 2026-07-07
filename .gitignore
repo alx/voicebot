@@ -52,5 +52,9 @@ audio/output/
 # Generated docs site (built by docsbuild/, deployed to gh-pages branch)
 _site/
 
+# Trico's scoped tool working directory (files it reads/writes at runtime)
+assistant-data/*
+!assistant-data/.gitkeep
+
 # Local git worktrees (scratch, not tracked)
 .worktrees/
