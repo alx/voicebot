@@ -66,6 +66,102 @@ optionally <strong>Example Dialogue</strong> and a <strong>First Message</strong
 persona <code>st-bridge</code> will talk to.</li>
 <li>Save the character.</li>
 </ol>
+<h3>Using the built-in Trico persona (with local tool support)</h3>
+<p>This repo ships a ready-to-import character, <strong>Trico</strong> — a French-only,
+family-friendly assistant that can also run a small whitelisted set of real
+local Linux commands. To use it instead of creating your own character:</p>
+<ol>
+<li>In SillyTavern's Character Management panel, use &quot;Import Character&quot; and
+select <code>st-bridge/personas/trico.json</code> from this repo.</li>
+<li>Continue to step 4 below to start a chat with Trico.</li>
+</ol>
+<p>To enable Trico's tool support, add to <code>st-bridge/.env</code>:</p>
+<pre><code class="language-bash">ST_BRIDGE_TOOLS_ENABLED=true
+ST_BRIDGE_TOOL_ROOT=../assistant-data
+ST_BRIDGE_TOOL_TIMEOUT_MS=10000
+</code></pre>
+<p>Trico can only touch files inside <code>assistant-data/</code> at the repo root, and can
+only run the following whitelisted commands (anything else, or any attempt to
+escape that directory, is rejected):</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it runs</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>disk_usage</code></td>
+<td><code>df -h</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>memory</code></td>
+<td><code>free -h</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>uptime</code></td>
+<td><code>uptime</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>datetime</code></td>
+<td><code>date</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>local_ip</code></td>
+<td><code>ip addr show</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ping &lt;host&gt;</code></td>
+<td><code>ping -c 3 &lt;host&gt;</code></td>
+<td>host must be a plain hostname/IP, no shell metacharacters</td>
+</tr>
+<tr>
+<td><code>list_dir &lt;path&gt;</code></td>
+<td><code>ls -la &lt;path&gt;</code></td>
+<td>path must resolve inside <code>assistant-data/</code></td>
+</tr>
+<tr>
+<td><code>read_file &lt;path&gt;</code></td>
+<td>reads a file</td>
+<td>path must resolve inside <code>assistant-data/</code></td>
+</tr>
+<tr>
+<td><code>write_file &lt;path&gt; &lt;content&gt;</code></td>
+<td>writes a file</td>
+<td>path must resolve inside <code>assistant-data/</code>, content size-capped</td>
+</tr>
+<tr>
+<td><code>search_files &lt;pattern&gt; &lt;path&gt;</code></td>
+<td><code>grep -rn &lt;pattern&gt; &lt;path&gt;</code></td>
+<td>path must resolve inside <code>assistant-data/</code></td>
+</tr>
+<tr>
+<td><code>add_event &lt;date&gt; &lt;heure&gt; &lt;titre&gt;</code></td>
+<td>ajoute un événement</td>
+<td>date <code>AAAA-MM-JJ</code>, heure <code>HH:MM</code>, titre non vide (≤ 200 caractères) ; stocké dans <code>assistant-data/calendar.ics</code></td>
+</tr>
+<tr>
+<td><code>list_events &lt;today|week|all&gt;</code></td>
+<td>liste les événements</td>
+<td><code>today</code> = aujourd'hui, <code>week</code> = aujourd'hui et les 6 jours suivants, <code>all</code> = tout, triés par date</td>
+</tr>
+<tr>
+<td><code>remove_event &lt;id&gt;</code></td>
+<td>supprime un événement</td>
+<td><code>id</code> = les 8 premiers caractères affichés par <code>list_events</code></td>
+</tr>
+</tbody>
+</table>
+<p>Trico's replies are also passed through a family-friendly word blocklist at
+<code>st-bridge/blocklist.json</code> — edit that file (a plain JSON array of strings) to
+add or remove blocked words.</p>
 <h2>4. Start a chat with the character</h2>
 <p>Click the character in the character list to open a chat with them. This is
 the chat <code>st-bridge</code> will keep open and reuse for every voice message.</p>
