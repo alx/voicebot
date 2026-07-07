@@ -2,7 +2,9 @@ import { execFile } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 
-export class ToolError extends Error {}
+import { ToolError } from './tool-error.js';
+
+export { ToolError } from './tool-error.js';
 
 const HOSTNAME_RE = /^[a-zA-Z0-9.-]{1,253}$/;
 const MAX_OUTPUT_CHARS = 2000;
