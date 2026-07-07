@@ -180,3 +180,36 @@ def test_synthesize_speech_checks_piper_model_on_first_call(tmp_path):
 
     with pytest.raises(VoicePipelineError, match="Piper model not found"):
         pipeline.synthesize_speech("bonjour", "fr", str(tmp_path / "out.wav"))
+
+
+def test_run_text_pipeline_dispatches_to_direct_llm_by_default():
+    pipeline = _make_pipeline(LLM_BACKEND="direct")
+
+    with patch.object(pipeline, "query_llm", return_value="salut!") as mock_direct, \
+         patch.object(pipeline, "query_sillytavern") as mock_st:
+        result = pipeline.run_text_pipeline("bonjour")
+
+    mock_direct.assert_called_once_with("bonjour", None)
+    mock_st.assert_not_called()
+    assert result["llm_response"] == "salut!"
+    assert "llm" in result["timing"]
+    assert "total" in result["timing"]
+
+
+def test_run_text_pipeline_dispatches_to_sillytavern_when_configured():
+    pipeline = _make_pipeline(LLM_BACKEND="sillytavern")
+
+    with patch.object(pipeline, "query_sillytavern", return_value="salut!") as mock_st, \
+         patch.object(pipeline, "query_llm") as mock_direct:
+        result = pipeline.run_text_pipeline("bonjour")
+
+    mock_st.assert_called_once_with("bonjour")
+    mock_direct.assert_not_called()
+    assert result["llm_response"] == "salut!"
+
+
+def test_run_text_pipeline_raises_on_empty_text():
+    pipeline = _make_pipeline()
+
+    with pytest.raises(VoicePipelineError, match="Empty text input"):
+        pipeline.run_text_pipeline("   ")

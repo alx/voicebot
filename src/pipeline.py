@@ -380,3 +380,53 @@ class VoicePipeline:
             logger.error(f"PIPELINE FAILED: {e}")
             logger.error("=" * 60 + "\n")
             raise
+
+    def run_text_pipeline(self, text: str) -> Dict[str, Any]:
+        """
+        Execute the reply-only pipeline for typed input: LLM step only, no STT/TTS.
+
+        Args:
+            text: User input text
+
+        Returns:
+            Dict with:
+                - llm_response: str
+                - timing: dict with llm, total times
+
+        Raises:
+            VoicePipelineError: If the input is empty or the backend call fails
+        """
+        if not text.strip():
+            raise VoicePipelineError("Empty text input")
+
+        logger.info("\n" + "=" * 60)
+        logger.info(f"TEXT PIPELINE EXECUTION START")
+        logger.info("=" * 60 + "\n")
+
+        pipeline_start = time.time()
+        timing = {}
+
+        try:
+            llm_start = time.time()
+            if self.config.LLM_BACKEND == "sillytavern":
+                llm_response = self.query_sillytavern(text)
+            else:
+                llm_response = self.query_llm(text, None)
+            timing['llm'] = time.time() - llm_start
+            timing['total'] = time.time() - pipeline_start
+
+            logger.info("=" * 60)
+            logger.info(f"TEXT PIPELINE EXECUTION COMPLETE")
+            logger.info(f"Total Time: {timing['total']:.2f}s")
+            logger.info("=" * 60 + "\n")
+
+            return {
+                "llm_response": llm_response,
+                "timing": timing
+            }
+
+        except Exception as e:
+            logger.error("\n" + "=" * 60)
+            logger.error(f"TEXT PIPELINE FAILED: {e}")
+            logger.error("=" * 60 + "\n")
+            raise
