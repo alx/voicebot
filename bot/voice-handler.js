@@ -10,9 +10,9 @@ import { runWithTimeout } from './subprocess-timeout.js';
  * @param {Message} msg - WhatsApp message object
  * @param {Chat} chat - WhatsApp chat object
  * @param {Client} client - WhatsApp client
- * @param {Set<string>} sentReplyIds - IDs of bot-sent voice replies to ignore on echo
+ * @param {{ sendTracked: Function }} tracker - Tracks bot-sent messages to ignore on echo
  */
-export async function handleVoiceMessage(msg, chat, client, sentReplyIds) {
+export async function handleVoiceMessage(msg, chat, client, tracker) {
     const messageId = msg.id.id.substring(0, 8);
     const logPrefix = `[${messageId}]`;
 
@@ -23,7 +23,7 @@ export async function handleVoiceMessage(msg, chat, client, sentReplyIds) {
     try {
         // Stage 1: Acknowledge receipt
         console.log(`${logPrefix} Sending acknowledgment...`);
-        await chat.sendMessage(config.STATUS_MESSAGES.received);
+        await tracker.sendTracked(chat, config.STATUS_MESSAGES.received);
 
         // Stage 2: Download audio
         console.log(`${logPrefix} Downloading voice message...`);
@@ -57,7 +57,7 @@ export async function handleVoiceMessage(msg, chat, client, sentReplyIds) {
             '{}',
             result.transcription
         );
-        await chat.sendMessage(transcriptionMsg);
+        await tracker.sendTracked(chat, transcriptionMsg);
 
         // Stage 5: Send LLM response
         console.log(`${logPrefix} Sending LLM response...`);
@@ -65,17 +65,14 @@ export async function handleVoiceMessage(msg, chat, client, sentReplyIds) {
             '{}',
             result.llm_response
         );
-        await chat.sendMessage(llmMsg);
+        await tracker.sendTracked(chat, llmMsg);
 
         // Stage 6: Send voice audio
         console.log(`${logPrefix} Sending voice response...`);
         const audioMedia = MessageMedia.fromFilePath(result.output_audio_path);
-        const sentReply = await chat.sendMessage(audioMedia, {
+        await tracker.sendTracked(chat, audioMedia, {
             sendAudioAsVoice: true
         });
-        if (sentReplyIds && sentReply?.id?.id) {
-            sentReplyIds.add(sentReply.id.id);
-        }
 
         const totalTime = result.timing?.total || 'unknown';
         console.log(`${logPrefix} ✓ Complete (${totalTime}s)`);
@@ -93,7 +90,7 @@ export async function handleVoiceMessage(msg, chat, client, sentReplyIds) {
             );
 
             try {
-                await chat.sendMessage(errorMsg);
+                await tracker.sendTracked(chat, errorMsg);
             } catch (sendError) {
                 console.error(`${logPrefix} Failed to send error notification:`, sendError.message);
             }

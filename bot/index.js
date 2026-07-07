@@ -4,6 +4,7 @@ import qrcode from 'qrcode-terminal';
 import { handleVoiceMessage } from './voice-handler.js';
 import { createQueue } from './queue.js';
 import config from './config.js';
+import { createMessageTracker } from './message-tracker.js';
 
 console.log('='.repeat(60));
 console.log('WhatsApp Voice Bot (whatsapp-web.js)');
@@ -30,10 +31,10 @@ const client = new Client({
 
 const voiceQueue = createQueue();
 
-// IDs of voice replies the bot itself sent, so message_create (which fires for
-// fromMe messages too) doesn't re-queue the bot's own audio reply as a new
-// incoming voice message.
-const sentReplyIds = new Set();
+// Tracks every message the bot itself sends (text or voice), so message_create
+// (which fires for fromMe messages too) doesn't re-queue the bot's own replies
+// as new incoming messages.
+const tracker = createMessageTracker();
 
 // QR code event - scan with WhatsApp to authenticate
 client.on('qr', (qr) => {
@@ -96,9 +97,9 @@ client.on('message_create', async (msg) => {
         const chat = await msg.getChat();
         const chatId = chat.id._serialized;
 
-        // Skip the bot's own voice reply echoed back via message_create
-        if (sentReplyIds.has(msg.id.id)) {
-            sentReplyIds.delete(msg.id.id);
+        // Skip the bot's own reply echoed back via message_create
+        if (tracker.wasSent(msg.id.id)) {
+            tracker.release(msg.id.id);
             return;
         }
 
@@ -116,13 +117,13 @@ client.on('message_create', async (msg) => {
         // Filter: only process voice messages (ptt = push-to-talk)
         if (msg.hasMedia && msg.type === 'ptt') {
             console.log(`\nVoice message received! Queued for processing...`);
-            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client, sentReplyIds)).catch((error) => {
+            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client, tracker)).catch((error) => {
                 console.error(`Unexpected error in queued voice message handler:`, error);
             });
         } else if (msg.hasMedia && msg.type === 'audio') {
             // Also handle regular audio messages
             console.log(`\nAudio message received! Queued for processing...`);
-            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client, sentReplyIds)).catch((error) => {
+            voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client, tracker)).catch((error) => {
                 console.error(`Unexpected error in queued voice message handler:`, error);
             });
         }
