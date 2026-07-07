@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { addEvent, listEvents, removeEvent } from './calendar.js';
+import { ToolError } from './tool-error.js';
 
 async function makeTempRoot() {
     return fs.mkdtemp(path.join(os.tmpdir(), 'trico-calendar-'));
@@ -110,6 +111,25 @@ test('removeEvent rejects an unknown id', async () => {
     await assert.rejects(
         removeEvent(['deadbeef'], { root }),
         /Aucun événement avec cet identifiant/
+    );
+});
+
+test('listEvents throws ToolError (not a bare Error) when calendar.ics is corrupted', async () => {
+    const root = await makeTempRoot();
+    const corrupted = [
+        'BEGIN:VCALENDAR',
+        'BEGIN:VEVENT',
+        'UID:corrupt-1',
+        'DTSTART:20260101T000000Z',
+        'RRULE:FREQ=DAILY;UNTIL=badvalue',
+        'END:VEVENT',
+        'END:VCALENDAR',
+    ].join('\n');
+    await fs.writeFile(path.join(root, 'calendar.ics'), corrupted, 'utf8');
+
+    await assert.rejects(
+        listEvents(['all'], { root }),
+        ToolError
     );
 });
 

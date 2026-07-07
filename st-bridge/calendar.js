@@ -9,10 +9,15 @@ const CALENDAR_FILENAME = 'calendar.ics';
 const MAX_TITLE_LENGTH = 200;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function calendarPath(root) {
     return path.join(root, CALENDAR_FILENAME);
+}
+
+function addDays(date, days) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
 }
 
 function pad2(n) {
@@ -35,10 +40,16 @@ async function readEvents(root) {
         if (error.code === 'ENOENT') {
             return [];
         }
-        throw error;
+        throw new ToolError(`Impossible de lire le calendrier : ${error.message}`);
     }
 
-    const parsed = ical.sync.parseICS(raw);
+    let parsed;
+    try {
+        parsed = ical.sync.parseICS(raw);
+    } catch (error) {
+        throw new ToolError(`Calendrier corrompu ou illisible : ${error.message}`);
+    }
+
     return Object.values(parsed)
         .filter((item) => item.type === 'VEVENT')
         .map((item) => ({
@@ -120,7 +131,7 @@ export async function listEvents(args, config) {
 
     const events = await readEvents(config.root);
     const today = formatDate(new Date());
-    const weekEnd = formatDate(new Date(Date.now() + 6 * DAY_MS));
+    const weekEnd = formatDate(addDays(new Date(), 6));
 
     const filtered = events.filter((event) => {
         if (filter === 'all') return true;
