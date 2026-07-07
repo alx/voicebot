@@ -22,6 +22,7 @@ WhatsApp → whatsapp-web.js → Node.js bot → Python subprocess → Response
 - 🤖 Generates responses using any OpenAI-compatible LLM server
 - 🔊 Synthesizes speech using Piper TTS
 - ✅ Sends 4 status updates: acknowledgment, transcription, LLM response, audio
+- 💬 Also replies to typed text messages in the group (text-only reply, no TTS)
 - 🔐 QR code authentication (once), session persisted
 - ❌ Graceful error handling with user notifications
 - 🚦 Oversized/overlong voice notes rejected before they hit the pipeline; only one message processed at a time; a hung pipeline subprocess is killed after a timeout
@@ -152,6 +153,8 @@ voicebot/
 ├── bot/                          # Node.js WhatsApp bot
 │   ├── index.js                  # Main bot entry point
 │   ├── voice-handler.js          # Voice message processing
+│   ├── text-handler.js           # Text message processing
+│   ├── message-tracker.js        # Tracks bot-sent messages to avoid echo loops
 │   ├── subprocess-timeout.js     # Timeout/kill wrapper for the Python subprocess
 │   ├── queue.js                  # Serializes voice message processing
 │   ├── *.test.js                 # Node test suite (run: npm test)
@@ -252,6 +255,9 @@ npm test
 source .venv/bin/activate
 python -m src.pipeline_cli path/to/audio.wav --json
 # Expected output: JSON with transcription, llm_response, output_audio_path
+
+python -m src.pipeline_cli --text "Bonjour Trico" --json
+# Expected output: JSON with llm_response, timing (no transcription/audio — text-only reply)
 ```
 
 ### Manual component scripts

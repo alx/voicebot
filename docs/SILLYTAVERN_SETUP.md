@@ -136,6 +136,10 @@ ST_BRIDGE_URL=http://localhost:8091
 Restart the bot (`./start_bot.sh`). Voice messages will now be answered by
 the SillyTavern persona instead of the direct LLM call.
 
+Typed text messages in the group reach Trico the same way voice messages do —
+they're queued on the same worker and answered with a text-only reply (no
+voice synthesis).
+
 ## 7. Taming verbose roleplay replies
 
 Voice replies get read aloud, so scene narration, `*action text*`, and
