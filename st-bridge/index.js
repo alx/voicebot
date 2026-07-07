@@ -2,6 +2,8 @@ import puppeteer from 'puppeteer';
 import config from './config.js';
 import { selectCharacter, createPageAdapter } from './puppeteer-adapter.js';
 import { sendMessageAndAwaitReply } from './chat-client.js';
+import { sendMessageWithTools } from './tool-runner.js';
+import { loadBlocklist, applyBlocklist } from './blocklist.js';
 import { createServer } from './server.js';
 
 async function main() {
@@ -22,8 +24,16 @@ async function main() {
     await selectCharacter(page, config.ST_CHARACTER_NAME);
 
     const adapter = createPageAdapter(page);
-    const replyFn = (text) =>
-        sendMessageAndAwaitReply(adapter, text, { timeoutMs: config.REPLY_TIMEOUT_MS });
+    const blocklist = loadBlocklist();
+    const replyFn = async (text) => {
+        const reply = await sendMessageWithTools(adapter, text, sendMessageAndAwaitReply, {
+            timeoutMs: config.REPLY_TIMEOUT_MS,
+            toolsEnabled: config.TOOLS_ENABLED,
+            toolConfig: { root: config.TOOL_ROOT },
+            toolTimeoutMs: config.TOOL_TIMEOUT_MS,
+        });
+        return applyBlocklist(reply, blocklist);
+    };
 
     const server = createServer(replyFn);
     server.listen(config.PORT, () => {
