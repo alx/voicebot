@@ -119,3 +119,64 @@ def test_run_pipeline_dispatches_to_direct_llm_by_default(tmp_path):
     mock_direct.assert_called_once_with("bonjour", "fr")
     mock_st.assert_not_called()
     assert result["llm_response"] == "salut!"
+
+
+def test_init_does_not_load_stt_model():
+    """Constructing VoicePipeline must not touch WhisperModel until transcribe_audio() is called."""
+    config = SimpleNamespace(
+        STT_LOCAL_MODEL_PATH="/nonexistent/path",
+        STT_MODEL_SIZE="small",
+        STT_DEVICE="cpu",
+        STT_COMPUTE_TYPE="int8",
+        STT_DOWNLOAD_ROOT="/nonexistent/download-root",
+        LLM_API_URL="http://localhost:8081/v1/chat/completions",
+        LLM_HEALTH_URL="http://localhost:8081/health",
+        PROJECT_ROOT="/nonexistent/project-root",
+    )
+    with patch("src.pipeline.requests.get", side_effect=requests.exceptions.ConnectionError("refused")), \
+         patch("src.pipeline.WhisperModel") as mock_whisper:
+        pipeline = VoicePipeline(config)
+
+    mock_whisper.assert_not_called()
+    assert not hasattr(pipeline, "stt_model")
+
+
+def test_transcribe_audio_loads_stt_model_on_first_call(tmp_path):
+    """transcribe_audio() must load the model lazily via _ensure_stt()."""
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"fake audio")
+
+    config = SimpleNamespace(
+        STT_LOCAL_MODEL_PATH="/nonexistent/path",
+        STT_MODEL_SIZE="small",
+        STT_DEVICE="cpu",
+        STT_COMPUTE_TYPE="int8",
+        STT_DOWNLOAD_ROOT="/nonexistent/download-root",
+        STT_LANGUAGE="fr",
+        STT_BEAM_SIZE=5,
+    )
+    pipeline = VoicePipeline.__new__(VoicePipeline)
+    pipeline.config = config
+
+    mock_segment = SimpleNamespace(text=" bonjour ")
+    mock_model = MagicMock()
+    mock_model.transcribe.return_value = ([mock_segment], SimpleNamespace(language="fr"))
+
+    with patch("src.pipeline.WhisperModel", return_value=mock_model) as mock_whisper_cls:
+        text, lang = pipeline.transcribe_audio(str(audio_path))
+        # Second call must not reload the model
+        pipeline.transcribe_audio(str(audio_path))
+
+    mock_whisper_cls.assert_called_once()
+    assert text == "bonjour"
+    assert lang == "fr"
+
+
+def test_synthesize_speech_checks_piper_model_on_first_call(tmp_path):
+    """synthesize_speech() must validate/set self.piper_model lazily via _ensure_tts()."""
+    config = SimpleNamespace(PROJECT_ROOT=str(tmp_path))
+    pipeline = VoicePipeline.__new__(VoicePipeline)
+    pipeline.config = config
+
+    with pytest.raises(VoicePipelineError, match="Piper model not found"):
+        pipeline.synthesize_speech("bonjour", "fr", str(tmp_path / "out.wav"))

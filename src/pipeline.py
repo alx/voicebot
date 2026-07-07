@@ -55,11 +55,34 @@ class VoicePipeline:
         # Ensure CUDA device is set
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-        # Initialize STT
+        # Test LLM connection
+        logger.info(f"Testing LLM: {self.config.LLM_API_URL}")
+        start = time.time()
+        try:
+            response = requests.get(self.config.LLM_HEALTH_URL, timeout=5)
+            if response.status_code == 200:
+                logger.info(f"   ✓ Connected in {time.time() - start:.2f}s")
+            else:
+                raise Exception(f"Health check failed: {response.status_code}")
+        except Exception as e:
+            logger.warning(f"   ⚠ LLM health check failed: {e}")
+            logger.warning(f"   Pipeline will continue, but LLM queries may fail")
+
+        logger.info("Pipeline ready (STT/TTS load lazily on first use)")
+
+        logger.info("\n" + "=" * 60)
+        logger.info("Pipeline Ready!")
+        logger.info("=" * 60 + "\n")
+
+    def _ensure_stt(self):
+        """Lazily load the faster-whisper model on first use."""
+        if getattr(self, "stt_model", None) is not None:
+            return
+
         local_model_path = getattr(self.config, "STT_LOCAL_MODEL_PATH", None)
         use_local_path = local_model_path and os.path.isdir(local_model_path)
         logger.info(
-            f"\n[1/3] Loading STT: faster-whisper "
+            f"Loading STT: faster-whisper "
             f"({local_model_path if use_local_path else self.config.STT_MODEL_SIZE})"
         )
         start = time.time()
@@ -82,36 +105,6 @@ class VoicePipeline:
             logger.error(f"   ✗ Failed to load STT model: {e}")
             raise VoicePipelineError(f"STT initialization failed: {e}")
 
-        # Test LLM connection
-        logger.info(f"\n[2/3] Testing LLM: {self.config.LLM_API_URL}")
-        start = time.time()
-        try:
-            response = requests.get(self.config.LLM_HEALTH_URL, timeout=5)
-            if response.status_code == 200:
-                logger.info(f"   ✓ Connected in {time.time() - start:.2f}s")
-            else:
-                raise Exception(f"Health check failed: {response.status_code}")
-        except Exception as e:
-            logger.warning(f"   ⚠ LLM health check failed: {e}")
-            logger.warning(f"   Pipeline will continue, but LLM queries may fail")
-
-        # Initialize TTS (Piper)
-        logger.info(f"\n[3/3] Loading TTS: Piper (CPU-based)")
-        start = time.time()
-
-        # Check if Piper model exists
-        piper_model = os.path.join(self.config.PROJECT_ROOT, "models", "piper", "fr_FR-siwis-medium.onnx")
-        if not os.path.exists(piper_model):
-            logger.error(f"   ✗ ERROR: Piper model not found at {piper_model}")
-            raise VoicePipelineError(f"Piper model not found: {piper_model}")
-
-        self.piper_model = piper_model
-        logger.info(f"   ✓ Piper ready in {time.time() - start:.2f}s")
-
-        logger.info("\n" + "=" * 60)
-        logger.info("Pipeline Ready!")
-        logger.info("=" * 60 + "\n")
-
     def transcribe_audio(self, audio_path: str) -> Tuple[str, str]:
         """
         Step 1: Transcribe audio to text using faster-whisper
@@ -125,6 +118,7 @@ class VoicePipeline:
         Raises:
             VoicePipelineError: If transcription fails
         """
+        self._ensure_stt()
         logger.info(f"[STT] Transcribing: {Path(audio_path).name}")
         start = time.time()
 
@@ -253,6 +247,17 @@ class VoicePipeline:
             logger.error(f"[LLM] ✗ SillyTavern bridge query failed: {e}")
             raise VoicePipelineError(f"SillyTavern bridge query failed: {e}")
 
+    def _ensure_tts(self):
+        """Lazily validate the Piper model path on first use."""
+        if getattr(self, "piper_model", None) is not None:
+            return
+
+        piper_model = os.path.join(self.config.PROJECT_ROOT, "models", "piper", "fr_FR-siwis-medium.onnx")
+        if not os.path.exists(piper_model):
+            logger.error(f"   ✗ ERROR: Piper model not found at {piper_model}")
+            raise VoicePipelineError(f"Piper model not found: {piper_model}")
+        self.piper_model = piper_model
+
     def synthesize_speech(self, text: str, language: str, output_path: str):
         """
         Step 3: Synthesize speech using Piper TTS
@@ -265,6 +270,7 @@ class VoicePipeline:
         Raises:
             VoicePipelineError: If synthesis fails
         """
+        self._ensure_tts()
         logger.info(f"[TTS] Synthesizing speech ({language}) with Piper")
         start = time.time()
 
