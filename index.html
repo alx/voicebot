@@ -43,6 +43,7 @@
 <li>🤖 Generates responses using any OpenAI-compatible LLM server</li>
 <li>🔊 Synthesizes speech using Piper TTS</li>
 <li>✅ Sends 4 status updates: acknowledgment, transcription, LLM response, audio</li>
+<li>💬 Also replies to typed text messages in the group (text-only reply, no TTS)</li>
 <li>🔐 QR code authentication (once), session persisted</li>
 <li>❌ Graceful error handling with user notifications</li>
 <li>🚦 Oversized/overlong voice notes rejected before they hit the pipeline; only one message processed at a time; a hung pipeline subprocess is killed after a timeout</li>
@@ -152,6 +153,8 @@ nano .env
 ├── bot/                          # Node.js WhatsApp bot
 │   ├── index.js                  # Main bot entry point
 │   ├── voice-handler.js          # Voice message processing
+│   ├── text-handler.js           # Text message processing
+│   ├── message-tracker.js        # Tracks bot-sent messages to avoid echo loops
 │   ├── subprocess-timeout.js     # Timeout/kill wrapper for the Python subprocess
 │   ├── queue.js                  # Serializes voice message processing
 │   ├── *.test.js                 # Node test suite (run: npm test)
@@ -234,6 +237,9 @@ npm test
 <pre><code class="language-bash">source .venv/bin/activate
 python -m src.pipeline_cli path/to/audio.wav --json
 # Expected output: JSON with transcription, llm_response, output_audio_path
+
+python -m src.pipeline_cli --text &quot;Bonjour Trico&quot; --json
+# Expected output: JSON with llm_response, timing (no transcription/audio — text-only reply)
 </code></pre>
 <h3>Manual component scripts</h3>
 <p><code>tests/step1/</code> has small standalone scripts for trying STT/TTS individually (not part of the automated suite):</p>
