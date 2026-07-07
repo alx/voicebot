@@ -2,6 +2,7 @@ import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
 import { handleVoiceMessage } from './voice-handler.js';
+import { handleTextMessage } from './text-handler.js';
 import { createQueue } from './queue.js';
 import config from './config.js';
 import { createMessageTracker } from './message-tracker.js';
@@ -125,6 +126,11 @@ client.on('message_create', async (msg) => {
             console.log(`\nAudio message received! Queued for processing...`);
             voiceQueue.enqueue(() => handleVoiceMessage(msg, chat, client, tracker)).catch((error) => {
                 console.error(`Unexpected error in queued voice message handler:`, error);
+            });
+        } else if (msg.type === 'chat' && msg.body && msg.body.trim().length > 0) {
+            console.log(`\nText message received! Queued for processing...`);
+            voiceQueue.enqueue(() => handleTextMessage(msg, chat, client, tracker)).catch((error) => {
+                console.error(`Unexpected error in queued text message handler:`, error);
             });
         }
 
