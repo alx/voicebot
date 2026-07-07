@@ -55,7 +55,7 @@
 </code></pre>
 </li>
 <li>
-<p><strong>Python 3.8-3.12</strong> (3.13 currently lacks a prebuilt wheel for a transitive dependency of <code>faster-whisper</code>; use <code>python3.11</code> or <code>python3.12</code> explicitly if your system default is newer)</p>
+<p><strong>Python 3.8-3.12</strong> (3.13 currently lacks a prebuilt wheel for a transitive dependency of <code>faster-whisper</code>; use <code>python3.11</code> or <code>python3.12</code> explicitly if your system default is newer). <a href="https://docs.astral.sh/uv/">uv</a> can provision an isolated 3.12 interpreter for you even if your system Python is 3.13 — see step 1 below.</p>
 <pre><code class="language-bash">python3 --version
 </code></pre>
 </li>
@@ -81,19 +81,20 @@
 <p><strong>Node.js:</strong></p>
 <pre><code class="language-bash">cd bot
 npm install
+cd ..
 </code></pre>
-<p><strong>Python:</strong></p>
-<pre><code class="language-bash">python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+<p><strong>Python</strong> (using <a href="https://docs.astral.sh/uv/">uv</a>; substitute plain <code>python3 -m venv .venv</code> + <code>pip install</code> if you don't have uv and your system Python is already 3.8-3.12):</p>
+<pre><code class="language-bash">uv venv --python 3.12 .venv
+uv pip install -r requirements.txt --python .venv/bin/python
 </code></pre>
-<h3>2. Download a Piper voice model</h3>
-<p><code>piper-tts</code> (installed above) provides the <code>piper</code> CLI, but voices are downloaded separately. This project defaults to the French <code>fr_FR-siwis-medium</code> voice:</p>
-<pre><code class="language-bash">mkdir -p models/piper
-source .venv/bin/activate
-python -m piper.download_voices fr_FR-siwis-medium --download-dir models/piper
+<h3>2. Download the AI models</h3>
+<pre><code class="language-bash">./scripts/download_models.sh
 </code></pre>
-<p>This creates <code>models/piper/fr_FR-siwis-medium.onnx</code> and its <code>.onnx.json</code> config, which <code>src/pipeline.py</code> expects. Browse other voices at the <a href="https://github.com/rhasspy/piper/blob/master/VOICES.md">Piper voices catalog</a> — see &quot;Customization&quot; below for using a different language/voice.</p>
+<p>This downloads two things into project-local directories (both gitignored, so this only needs to run once per machine):</p>
+<ul>
+<li><strong>Piper TTS voice</strong> (<code>fr_FR-siwis-medium</code>) into <code>models/piper/</code> — a small, fast download. Browse other voices at the <a href="https://github.com/rhasspy/piper/blob/master/VOICES.md">Piper voices catalog</a>; see &quot;Customization&quot; below to use a different language/voice.</li>
+<li><strong>faster-whisper STT model</strong> (<code>small</code>) into <code>models/faster-whisper-small/</code> as a plain directory (not the shared <code>huggingface_hub</code> cache). <code>model.bin</code> is ~460MB, so this can take several minutes on a slow connection — let it run to completion. <code>src/pipeline.py</code> loads directly from this local path when present, which is deliberate: <code>huggingface_hub</code>'s cache-freshness check has been observed to falsely flag an already-complete download as incomplete and then hang for minutes re-verifying/re-fetching it over the network on <em>every</em> pipeline run, blowing past the 90s subprocess timeout (<code>PIPELINE_TIMEOUT_MS</code>) each time. Loading from a plain local directory skips that check entirely.</li>
+</ul>
 <h3>3. Configure Environment</h3>
 <pre><code class="language-bash"># Create .env from template
 cp .env.example .env
@@ -272,7 +273,10 @@ curl &quot;${LLM_BASE_URL:-http://localhost:8081}/health&quot;
 <li>Verify <code>VOICEBOT_GROUP_ID</code> is correct in <code>.env</code></li>
 <li>Send voice message to configured group (not individual chat)</li>
 <li>Check bot logs for errors</li>
+<li>If you're testing by sending the voice note from the same phone number that's linked as the bot, note that <code>bot/index.js</code> listens on whatsapp-web.js's <code>message_create</code> event specifically because the plain <code>message</code> event never fires for messages sent by the linked account itself (<code>fromMe</code>). If logs show nothing at all for your test message, this is the first thing to check.</li>
 </ol>
+<h3>Pipeline Times Out Even Though the STT Model Is Downloaded</h3>
+<p>If <code>bot/index.js</code> logs <code>Process timed out after 90000ms: python -m src.pipeline_cli ...</code> on every voice message, and <code>[Python stderr]</code> shows it stuck after <code>Loading STT: faster-whisper (small)</code>, <code>huggingface_hub</code> is likely stuck re-verifying the cached model over the network (see step 2 of Quick Start above). Confirm the model exists at <code>models/faster-whisper-small/model.bin</code>; if <code>./scripts/download_models.sh</code> hasn't been run or was interrupted, re-run it and let it finish before starting the bot.</p>
 <h2>Performance</h2>
 <p>Approximate latency per voice message (French, small Whisper model, CPU STT/TTS):</p>
 <ul>
