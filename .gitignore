@@ -51,3 +51,6 @@ audio/output/
 
 # Generated docs site (built by docsbuild/, deployed to gh-pages branch)
 _site/
+
+# Local git worktrees (scratch, not tracked)
+.worktrees/
