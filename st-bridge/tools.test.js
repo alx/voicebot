@@ -35,6 +35,13 @@ test('ping rejects a missing host argument', async () => {
     );
 });
 
+test('ping rejects a host argument starting with a hyphen (flag injection)', async () => {
+    await assert.rejects(
+        runTool('ping', ['-f'], { root: '/tmp' }, 1000),
+        ToolError
+    );
+});
+
 test('resolveScopedPath allows a path inside the root', async () => {
     const root = await makeTempRoot();
     await fs.writeFile(path.join(root, 'notes.txt'), 'hello');
@@ -74,6 +81,35 @@ test('write_file then read_file round-trips content inside the root', async () =
     await TOOLS.write_file(['note.txt', 'bonjour', 'le', 'monde'], { root });
     const content = await TOOLS.read_file(['note.txt'], { root });
     assert.equal(content, 'bonjour le monde');
+});
+
+test('resolveScopedPath rejects a pre-existing symlink leaf that escapes the root, even when mustExist is false', async () => {
+    const root = await makeTempRoot();
+    const outsideDir = await makeTempRoot();
+    const outsideFile = path.join(outsideDir, 'target.txt');
+    await fs.writeFile(outsideFile, 'outside content');
+    await fs.symlink(outsideFile, path.join(root, 'escape-target'));
+
+    await assert.rejects(
+        resolveScopedPath(root, 'escape-target', { mustExist: false }),
+        ToolError
+    );
+});
+
+test('write_file rejects writing through a pre-existing symlink that escapes the root', async () => {
+    const root = await makeTempRoot();
+    const outsideDir = await makeTempRoot();
+    const outsideFile = path.join(outsideDir, 'target.txt');
+    await fs.writeFile(outsideFile, 'outside content');
+    await fs.symlink(outsideFile, path.join(root, 'escape-target'));
+
+    await assert.rejects(
+        TOOLS.write_file(['escape-target', 'pwned'], { root }),
+        ToolError
+    );
+
+    const contentAfter = await fs.readFile(outsideFile, 'utf8');
+    assert.equal(contentAfter, 'outside content');
 });
 
 test('write_file rejects content larger than the size cap', async () => {

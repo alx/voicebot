@@ -32,7 +32,7 @@ function execFileCapture(cmd, args, timeoutMs) {
 }
 
 function validateHost(host) {
-    if (!host || !HOSTNAME_RE.test(host)) {
+    if (!host || host.startsWith('-') || !HOSTNAME_RE.test(host)) {
         throw new ToolError(`Invalid host: ${host ?? '(missing)'}`);
     }
     return host;
@@ -45,7 +45,22 @@ export async function resolveScopedPath(root, requestedPath, { mustExist }) {
         throw new ToolError('Path escapes the scoped root');
     }
 
-    const checkTarget = mustExist ? lexical : path.dirname(lexical);
+    // Regardless of mustExist, if the leaf itself already exists (including
+    // as a symlink whose target may not exist or may be invalid), its
+    // realpath must be validated against root. Only fall back to checking
+    // the parent directory when the leaf genuinely does not exist yet.
+    let leafExists = true;
+    try {
+        await fs.lstat(lexical);
+    } catch {
+        leafExists = false;
+    }
+
+    if (!leafExists && mustExist) {
+        throw new ToolError(`Path does not exist: ${requestedPath}`);
+    }
+
+    const checkTarget = leafExists ? lexical : path.dirname(lexical);
     let real;
     try {
         real = await fs.realpath(checkTarget);
