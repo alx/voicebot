@@ -30,5 +30,8 @@ export default {
     PYTHON_CMD: process.env.PYTHON_CMD || 'python',
 
     // Max time to wait for the Python pipeline before killing it (ms)
-    PIPELINE_TIMEOUT_MS: parseInt(process.env.PIPELINE_TIMEOUT_MS || '90000', 10)
+    PIPELINE_TIMEOUT_MS: parseInt(process.env.PIPELINE_TIMEOUT_MS || '90000', 10),
+
+    // Max characters allowed in a text message before Trico rejects it without calling Python
+    TEXT_MAX_CHARS: parseInt(process.env.TEXT_MAX_CHARS || '1000', 10)
 };

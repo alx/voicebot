@@ -64,3 +64,15 @@ def test_st_bridge_url_override(monkeypatch):
 def test_st_bridge_timeout_is_an_int():
     config = _reload_config()
     assert config.ST_BRIDGE_TIMEOUT == 60
+
+
+def test_text_max_chars_defaults_to_1000(monkeypatch):
+    monkeypatch.delenv("TEXT_MAX_CHARS", raising=False)
+    config = _reload_config()
+    assert config.TEXT_MAX_CHARS == 1000
+
+
+def test_text_max_chars_override(monkeypatch):
+    monkeypatch.setenv("TEXT_MAX_CHARS", "500")
+    config = _reload_config()
+    assert config.TEXT_MAX_CHARS == 500

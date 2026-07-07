@@ -62,6 +62,9 @@ AUDIO_DOWNLOAD_TIMEOUT = 30  # seconds
 AUDIO_MAX_SIZE_MB = 10
 AUDIO_MAX_DURATION_SEC = 300  # 5 minutes
 
+# Text message processing
+TEXT_MAX_CHARS = int(os.getenv("TEXT_MAX_CHARS", "1000"))
+
 # Status Messages (French)
 STATUS_MESSAGES = {
     "received": "🎤 Message vocal reçu, traitement en cours...",
