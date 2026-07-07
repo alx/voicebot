@@ -174,7 +174,7 @@ def test_transcribe_audio_loads_stt_model_on_first_call(tmp_path):
 
 def test_synthesize_speech_checks_piper_model_on_first_call(tmp_path):
     """synthesize_speech() must validate/set self.piper_model lazily via _ensure_tts()."""
-    config = SimpleNamespace(PROJECT_ROOT=str(tmp_path))
+    config = SimpleNamespace(TTS_MODEL_PATH=str(tmp_path / "fr_FR-siwis-medium.onnx"))
     pipeline = VoicePipeline.__new__(VoicePipeline)
     pipeline.config = config
 

@@ -252,7 +252,7 @@ class VoicePipeline:
         if getattr(self, "piper_model", None) is not None:
             return
 
-        piper_model = os.path.join(self.config.PROJECT_ROOT, "models", "piper", "fr_FR-siwis-medium.onnx")
+        piper_model = self.config.TTS_MODEL_PATH
         if not os.path.exists(piper_model):
             logger.error(f"   ✗ ERROR: Piper model not found at {piper_model}")
             raise VoicePipelineError(f"Piper model not found: {piper_model}")
