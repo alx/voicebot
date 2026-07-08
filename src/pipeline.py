@@ -3,38 +3,17 @@ Voice Pipeline - STT->LLM->TTS with structured output
 Refactored from test_pipeline.py for production use
 """
 import os
-import re
 import time
 import subprocess
 import logging
-import requests
 from datetime import datetime
 from pathlib import Path
 from faster_whisper import WhisperModel
 from typing import Dict, Any, Tuple
 
+from src.llm_backends import VoicePipelineError, create_backend
+
 logger = logging.getLogger(__name__)
-
-
-class VoicePipelineError(Exception):
-    """Custom exception for pipeline errors"""
-    pass
-
-
-_ACTION_TEXT_PATTERN = re.compile(r'\*[^*]+\*')
-
-
-def _strip_narration(text: str) -> str:
-    """
-    Remove *action/narration* asides some roleplay personas still emit despite
-    being instructed to reply with spoken dialogue only. Safety net for the
-    SillyTavern route on top of the persona-level instruction (chat Author's
-    Note / variables) — not a substitute for it, since dialogue that isn't
-    asterisk-wrapped passes through untouched.
-    """
-    cleaned = _ACTION_TEXT_PATTERN.sub('', text)
-    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-    return cleaned or text
 
 
 class VoicePipeline:
@@ -55,18 +34,7 @@ class VoicePipeline:
         # Ensure CUDA device is set
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-        # Test LLM connection
-        logger.info(f"Testing LLM: {self.config.LLM_API_URL}")
-        start = time.time()
-        try:
-            response = requests.get(self.config.LLM_HEALTH_URL, timeout=5)
-            if response.status_code == 200:
-                logger.info(f"   ✓ Connected in {time.time() - start:.2f}s")
-            else:
-                raise Exception(f"Health check failed: {response.status_code}")
-        except Exception as e:
-            logger.warning(f"   ⚠ LLM health check failed: {e}")
-            logger.warning(f"   Pipeline will continue, but LLM queries may fail")
+        self.backend = create_backend(config_module)
 
         logger.info("Pipeline ready (STT/TTS load lazily on first use)")
 
@@ -148,104 +116,6 @@ class VoicePipeline:
         except Exception as e:
             logger.error(f"[STT] ✗ Transcription failed: {e}")
             raise VoicePipelineError(f"STT failed: {e}")
-
-    def query_llm(self, user_text: str, language: str) -> str:
-        """
-        Step 2: Query LLM via llama-server OpenAI-compatible API
-
-        Args:
-            user_text: User input text
-            language: Detected language
-
-        Returns:
-            LLM response text
-
-        Raises:
-            VoicePipelineError: If LLM query fails
-        """
-        logger.info(f"[LLM] Querying: {self.config.LLM_MODEL_NAME}")
-        start = time.time()
-
-        # Build OpenAI-compatible chat request
-        payload = {
-            "model": self.config.LLM_MODEL_NAME,
-            "messages": [
-                {"role": "system", "content": self.config.SYSTEM_PROMPT},
-                {"role": "user", "content": user_text}
-            ],
-            "temperature": self.config.LLM_TEMPERATURE,
-            "max_tokens": self.config.LLM_MAX_TOKENS
-        }
-
-        try:
-            response = requests.post(
-                self.config.LLM_API_URL,
-                json=payload,
-                timeout=self.config.LLM_TIMEOUT
-            )
-            response.raise_for_status()
-
-            # Extract response from OpenAI format
-            data = response.json()
-            llm_response = data["choices"][0]["message"]["content"].strip()
-
-            elapsed = time.time() - start
-            logger.info(f"[LLM] ✓ Completed in {elapsed:.2f}s")
-            logger.info(f"[LLM] Response: \"{llm_response}\"")
-
-            if not llm_response.strip():
-                raise VoicePipelineError("Empty LLM response")
-
-            return llm_response
-
-        except requests.exceptions.RequestException as e:
-            logger.error(f"[LLM] ✗ LLM query failed: {e}")
-            raise VoicePipelineError(f"LLM query failed: {e}")
-
-    def query_sillytavern(self, user_text: str) -> str:
-        """
-        Alternate Step 2: Get a persona-driven reply via the SillyTavern bridge
-
-        Args:
-            user_text: User input text
-
-        Returns:
-            SillyTavern reply text
-
-        Raises:
-            VoicePipelineError: If the bridge call fails
-        """
-        logger.info(f"[LLM] Querying SillyTavern bridge: {self.config.ST_BRIDGE_URL}")
-        start = time.time()
-
-        try:
-            response = requests.post(
-                f"{self.config.ST_BRIDGE_URL}/reply",
-                json={"text": user_text},
-                timeout=self.config.ST_BRIDGE_TIMEOUT
-            )
-            response.raise_for_status()
-
-            data = response.json()
-            try:
-                reply = data["reply"].strip()
-            except (KeyError, TypeError, AttributeError) as e:
-                raise VoicePipelineError(f"Malformed SillyTavern bridge response: {e}")
-
-            if not reply:
-                raise VoicePipelineError("Empty SillyTavern reply")
-
-            reply = _strip_narration(reply)
-
-            elapsed = time.time() - start
-            logger.info(f"[LLM] ✓ SillyTavern reply in {elapsed:.2f}s")
-            logger.info(f"[LLM] Response: \"{reply}\"")
-
-            return reply
-
-        except requests.exceptions.RequestException as e:
-            logger.error(f"[LLM] ✗ SillyTavern bridge query failed: {e}")
-            raise VoicePipelineError(f"SillyTavern bridge query failed: {e}")
 
     def _ensure_tts(self):
         """Lazily validate the Piper model path on first use."""
@@ -348,10 +218,7 @@ class VoicePipeline:
 
             # Step 2: LLM
             llm_start = time.time()
-            if self.config.LLM_BACKEND == "sillytavern":
-                llm_response = self.query_sillytavern(transcription)
-            else:
-                llm_response = self.query_llm(transcription, detected_lang)
+            llm_response = self.backend.get_reply(transcription)
             timing['llm'] = time.time() - llm_start
 
             # Step 3: TTS
@@ -408,10 +275,7 @@ class VoicePipeline:
 
         try:
             llm_start = time.time()
-            if self.config.LLM_BACKEND == "sillytavern":
-                llm_response = self.query_sillytavern(text)
-            else:
-                llm_response = self.query_llm(text, None)
+            llm_response = self.backend.get_reply(text)
             timing['llm'] = time.time() - llm_start
             timing['total'] = time.time() - pipeline_start
 
