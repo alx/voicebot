@@ -33,8 +33,8 @@
 <li><strong>Node.js</strong>: Handles WhatsApp connection (whatsapp-web.js library)</li>
 <li><strong>Python</strong>: Handles voice processing (STT→LLM→TTS pipeline)</li>
 </ul>
-<pre><code>WhatsApp → whatsapp-web.js → Node.js bot → Python subprocess → Response
-                (receives)     (processes)    (STT/LLM/TTS)     (sends back)
+<pre><code>WhatsApp → whatsapp-web.js → Node.js bot → Python worker (persistent) → Response
+                (receives)     (processes)   (STT/LLM/TTS, spawned once)  (sends back)
 </code></pre>
 <h2>Features</h2>
 <ul>
@@ -46,7 +46,7 @@
 <li>💬 Also replies to typed text messages in the group (text-only reply, no TTS)</li>
 <li>🔐 QR code authentication (once), session persisted</li>
 <li>❌ Graceful error handling with user notifications</li>
-<li>🚦 Oversized/overlong voice notes rejected before they hit the pipeline; only one message processed at a time; a hung pipeline subprocess is killed after a timeout</li>
+<li>🚦 Oversized/overlong voice notes rejected before they hit the pipeline; only one message processed at a time; the Python pipeline runs as a persistent worker (spawned once, not per message) that is killed and transparently respawned if it hangs past a timeout</li>
 </ul>
 <h2>Prerequisites</h2>
 <ol>
@@ -154,8 +154,10 @@ nano .env
 │   ├── index.js                  # Main bot entry point
 │   ├── voice-handler.js          # Voice message processing
 │   ├── text-handler.js           # Text message processing
+│   ├── pipeline-client.js        # Persistent Python worker client (spawn, protocol, timeout/crash recovery)
+│   ├── notify-error.js           # Shared error-notification helper
 │   ├── message-tracker.js        # Tracks bot-sent messages to avoid echo loops
-│   ├── subprocess-timeout.js     # Timeout/kill wrapper for the Python subprocess
+│   ├── subprocess-timeout.js     # Timeout/kill wrapper for subprocess calls
 │   ├── queue.js                  # Serializes voice message processing
 │   ├── *.test.js                 # Node test suite (run: npm test)
 │   ├── config.js                 # Bot configuration
@@ -164,7 +166,9 @@ nano .env
 │
 ├── src/                          # Python pipeline
 │   ├── pipeline.py                # VoicePipeline class
-│   ├── pipeline_cli.py            # CLI wrapper for Node integration
+│   ├── worker.py                  # Persistent worker: JSON-lines protocol over stdin/stdout
+│   ├── llm_backends.py            # Direct / SillyTavern LLM backend strategies
+│   ├── pipeline_cli.py            # CLI wrapper for manual testing (no longer used by the bot)
 │   ├── audio_converter.py         # Format conversion + validation
 │   └── config.py                  # Python config
 │
@@ -215,7 +219,7 @@ VOICEBOT_GROUP_ID=
 <p>This bot defaults to French. To use another language, change these three places:</p>
 <ol>
 <li><code>src/config.py</code>: <code>STT_LANGUAGE</code> (or <code>None</code> for auto-detect) and <code>SYSTEM_PROMPT</code></li>
-<li><code>src/pipeline.py</code>: <code>synthesize_speech()</code>'s hardcoded Piper model path (<code>models/piper/fr_FR-siwis-medium.onnx</code>)</li>
+<li><code>src/config.py</code>: <code>TTS_MODEL_PATH</code> (defaults to <code>models/piper/fr_FR-siwis-medium.onnx</code>)</li>
 <li>Download the corresponding Piper voice for your target language (see step 2 in Quick Start)</li>
 </ol>
 <h2>Optional: SillyTavern Persona Route</h2>
@@ -282,7 +286,7 @@ curl &quot;${LLM_BASE_URL:-http://localhost:8081}/health&quot;
 <li>If you're testing by sending the voice note from the same phone number that's linked as the bot, note that <code>bot/index.js</code> listens on whatsapp-web.js's <code>message_create</code> event specifically because the plain <code>message</code> event never fires for messages sent by the linked account itself (<code>fromMe</code>). If logs show nothing at all for your test message, this is the first thing to check.</li>
 </ol>
 <h3>Pipeline Times Out Even Though the STT Model Is Downloaded</h3>
-<p>If <code>bot/index.js</code> logs <code>Process timed out after 90000ms: python -m src.pipeline_cli ...</code> on every voice message, and <code>[Python stderr]</code> shows it stuck after <code>Loading STT: faster-whisper (small)</code>, <code>huggingface_hub</code> is likely stuck re-verifying the cached model over the network (see step 2 of Quick Start above). Confirm the model exists at <code>models/faster-whisper-small/model.bin</code>; if <code>./scripts/download_models.sh</code> hasn't been run or was interrupted, re-run it and let it finish before starting the bot.</p>
+<p>If <code>bot/index.js</code> logs <code>Pipeline worker timed out after 90000ms</code> on every voice message, and <code>[worker stderr]</code> shows it stuck after <code>Loading STT: faster-whisper (small)</code>, <code>huggingface_hub</code> is likely stuck re-verifying the cached model over the network (see step 2 of Quick Start above). Confirm the model exists at <code>models/faster-whisper-small/model.bin</code>; if <code>./scripts/download_models.sh</code> hasn't been run or was interrupted, re-run it and let it finish before starting the bot.</p>
 <h2>Performance</h2>
 <p>Approximate latency per voice message (French, small Whisper model, CPU STT/TTS):</p>
 <ul>
@@ -295,7 +299,6 @@ curl &quot;${LLM_BASE_URL:-http://localhost:8081}/health&quot;
 </ul>
 <h2>Known Limitations</h2>
 <ul>
-<li><strong>No persistent model</strong>: each voice message spawns a new Python subprocess that reloads the Whisper model from disk. This adds latency vs. a long-running worker process — a reasonable target for a future improvement, not implemented here to keep the architecture simple.</li>
 <li><strong>Single-instance, no horizontal scaling</strong>: one bot process, one WhatsApp session. Not designed for multiple concurrent group deployments from one codebase instance.</li>
 <li><strong>No per-user rate limiting</strong>: anyone in the configured group can trigger the pipeline; there's no cooldown or quota per sender, only the global one-at-a-time queue.</li>
 <li><strong>Unofficial WhatsApp client</strong>: see the note at the top of this README.</li>
