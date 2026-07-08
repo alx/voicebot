@@ -225,7 +225,7 @@ STATUS_MESSAGES: {
 This bot defaults to French. To use another language, change these three places:
 
 1. `src/config.py`: `STT_LANGUAGE` (or `None` for auto-detect) and `SYSTEM_PROMPT`
-2. `src/pipeline.py`: `synthesize_speech()`'s hardcoded Piper model path (`models/piper/fr_FR-siwis-medium.onnx`)
+2. `src/config.py`: `TTS_MODEL_PATH` (defaults to `models/piper/fr_FR-siwis-medium.onnx`)
 3. Download the corresponding Piper voice for your target language (see step 2 in Quick Start)
 
 ## Optional: SillyTavern Persona Route

@@ -1,5 +1,14 @@
 """
-Configuration file for Voice Bot STT->LLM->TTS Pipeline
+Configuration for the Python STT->LLM->TTS pipeline.
+
+Config scope: pipeline behavior only — model selection, LLM endpoints,
+audio limits. WhatsApp-side settings live in bot/config.js; SillyTavern
+bridge settings live in st-bridge/config.js.
+
+Deliberately duplicated with bot/config.js: TEXT_MAX_CHARS (same
+TEXT_MAX_CHARS env var on both sides), so Node can reject oversized
+messages without spawning Python while Python still enforces the limit
+for direct CLI use.
 """
 import os
 from dotenv import load_dotenv
@@ -9,14 +18,10 @@ load_dotenv()
 
 # Project paths
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-AUDIO_INPUT_DIR = os.path.join(PROJECT_ROOT, "audio", "input")
 AUDIO_OUTPUT_DIR = os.path.join(PROJECT_ROOT, "audio", "output")
-TEMP_AUDIO_DIR = os.path.join(PROJECT_ROOT, "audio", "temp")
 MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
-LOGS_DIR = os.path.join(PROJECT_ROOT, "logs")
 
 # GPU configuration
-CUDA_DEVICE = "cuda:0"  # Use GPU 0 only
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 # STT Configuration (faster-whisper)
@@ -49,8 +54,7 @@ ST_BRIDGE_URL = os.getenv("ST_BRIDGE_URL", "http://localhost:8091")
 ST_BRIDGE_TIMEOUT = 60  # seconds
 
 # TTS Configuration (Piper)
-TTS_LANGUAGE = "fr"       # Default output language (fr or en)
-TTS_DEVICE = "cpu"        # Using CPU to avoid GPU memory conflicts
+TTS_MODEL_PATH = os.path.join(MODELS_DIR, "piper", "fr_FR-siwis-medium.onnx")
 
 # System prompt for LLM
 SYSTEM_PROMPT = """Tu es un assistant vocal bilingue (français/anglais).
@@ -58,26 +62,11 @@ Réponds de manière concise (2-3 phrases maximum) dans la langue utilisée par 
 Tes réponses seront converties en audio, donc sois naturel et conversationnel."""
 
 # Audio Processing
-AUDIO_DOWNLOAD_TIMEOUT = 30  # seconds
 AUDIO_MAX_SIZE_MB = 10
 AUDIO_MAX_DURATION_SEC = 300  # 5 minutes
 
 # Text message processing
 TEXT_MAX_CHARS = int(os.getenv("TEXT_MAX_CHARS", "1000"))
-
-# Status Messages (French)
-STATUS_MESSAGES = {
-    "received": "🎤 Message vocal reçu, traitement en cours...",
-    "transcription": "📝 Transcription: {}",
-    "llm_response": "🤖 Réponse: {}",
-    "error": "❌ Erreur: {}",
-    "processing": "⚙️ Traitement...",
-}
-
-# Error Handling
-ENABLE_ERROR_NOTIFICATIONS = True
-MAX_RETRIES = 3
-RETRY_DELAY = 2  # seconds
 
 # Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")  # DEBUG, INFO, WARNING, ERROR

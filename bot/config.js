@@ -1,3 +1,11 @@
+// Config scope: WhatsApp-side behavior only — group targeting, user-facing
+// status messages, and Python subprocess invocation limits.
+//
+// Deliberately duplicated with src/config.py: TEXT_MAX_CHARS (same
+// TEXT_MAX_CHARS env var on both sides), so Node can reject oversized
+// messages without spawning Python while Python still enforces the limit
+// for direct CLI use.
+
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';

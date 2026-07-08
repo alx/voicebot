@@ -76,3 +76,28 @@ def test_text_max_chars_override(monkeypatch):
     monkeypatch.setenv("TEXT_MAX_CHARS", "500")
     config = _reload_config()
     assert config.TEXT_MAX_CHARS == 500
+
+
+def test_dead_pipeline_config_removed_slice1():
+    config = _reload_config()
+    for attr in (
+        "STATUS_MESSAGES",
+        "MAX_RETRIES",
+        "RETRY_DELAY",
+        "AUDIO_DOWNLOAD_TIMEOUT",
+        "LOGS_DIR",
+        "ENABLE_ERROR_NOTIFICATIONS",
+        "TTS_LANGUAGE",
+        "TTS_DEVICE",
+        "AUDIO_INPUT_DIR",
+        "TEMP_AUDIO_DIR",
+        "CUDA_DEVICE",
+    ):
+        assert not hasattr(config, attr), f"{attr} should have been removed"
+
+
+def test_tts_model_path_points_at_bundled_piper_voice():
+    config = _reload_config()
+    assert config.TTS_MODEL_PATH == os.path.join(
+        config.MODELS_DIR, "piper", "fr_FR-siwis-medium.onnx"
+    )
