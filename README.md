@@ -322,7 +322,7 @@ curl "${LLM_BASE_URL:-http://localhost:8081}/health"
 
 ### Pipeline Times Out Even Though the STT Model Is Downloaded
 
-If `bot/index.js` logs `Process timed out after 90000ms: python -m src.pipeline_cli ...` on every voice message, and `[Python stderr]` shows it stuck after `Loading STT: faster-whisper (small)`, `huggingface_hub` is likely stuck re-verifying the cached model over the network (see step 2 of Quick Start above). Confirm the model exists at `models/faster-whisper-small/model.bin`; if `./scripts/download_models.sh` hasn't been run or was interrupted, re-run it and let it finish before starting the bot.
+If `bot/index.js` logs `Pipeline worker timed out after 90000ms` on every voice message, and `[worker stderr]` shows it stuck after `Loading STT: faster-whisper (small)`, `huggingface_hub` is likely stuck re-verifying the cached model over the network (see step 2 of Quick Start above). Confirm the model exists at `models/faster-whisper-small/model.bin`; if `./scripts/download_models.sh` hasn't been run or was interrupted, re-run it and let it finish before starting the bot.
 
 ## Performance
 
