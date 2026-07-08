@@ -11,8 +11,8 @@ A WhatsApp voice bot that processes voice messages through an STT→LLM→TTS pi
 - **Python**: Handles voice processing (STT→LLM→TTS pipeline)
 
 ```
-WhatsApp → whatsapp-web.js → Node.js bot → Python subprocess → Response
-                (receives)     (processes)    (STT/LLM/TTS)     (sends back)
+WhatsApp → whatsapp-web.js → Node.js bot → Python worker (persistent) → Response
+                (receives)     (processes)   (STT/LLM/TTS, spawned once)  (sends back)
 ```
 
 ## Features
@@ -25,7 +25,7 @@ WhatsApp → whatsapp-web.js → Node.js bot → Python subprocess → Response
 - 💬 Also replies to typed text messages in the group (text-only reply, no TTS)
 - 🔐 QR code authentication (once), session persisted
 - ❌ Graceful error handling with user notifications
-- 🚦 Oversized/overlong voice notes rejected before they hit the pipeline; only one message processed at a time; a hung pipeline subprocess is killed after a timeout
+- 🚦 Oversized/overlong voice notes rejected before they hit the pipeline; only one message processed at a time; the Python pipeline runs as a persistent worker (spawned once, not per message) that is killed and transparently respawned if it hangs past a timeout
 
 ## Prerequisites
 
@@ -154,8 +154,10 @@ voicebot/
 │   ├── index.js                  # Main bot entry point
 │   ├── voice-handler.js          # Voice message processing
 │   ├── text-handler.js           # Text message processing
+│   ├── pipeline-client.js        # Persistent Python worker client (spawn, protocol, timeout/crash recovery)
+│   ├── notify-error.js           # Shared error-notification helper
 │   ├── message-tracker.js        # Tracks bot-sent messages to avoid echo loops
-│   ├── subprocess-timeout.js     # Timeout/kill wrapper for the Python subprocess
+│   ├── subprocess-timeout.js     # Timeout/kill wrapper for subprocess calls
 │   ├── queue.js                  # Serializes voice message processing
 │   ├── *.test.js                 # Node test suite (run: npm test)
 │   ├── config.js                 # Bot configuration
@@ -164,7 +166,9 @@ voicebot/
 │
 ├── src/                          # Python pipeline
 │   ├── pipeline.py                # VoicePipeline class
-│   ├── pipeline_cli.py            # CLI wrapper for Node integration
+│   ├── worker.py                  # Persistent worker: JSON-lines protocol over stdin/stdout
+│   ├── llm_backends.py            # Direct / SillyTavern LLM backend strategies
+│   ├── pipeline_cli.py            # CLI wrapper for manual testing (no longer used by the bot)
 │   ├── audio_converter.py         # Format conversion + validation
 │   └── config.py                  # Python config
 │
@@ -332,7 +336,6 @@ Approximate latency per voice message (French, small Whisper model, CPU STT/TTS)
 
 ## Known Limitations
 
-- **No persistent model**: each voice message spawns a new Python subprocess that reloads the Whisper model from disk. This adds latency vs. a long-running worker process — a reasonable target for a future improvement, not implemented here to keep the architecture simple.
 - **Single-instance, no horizontal scaling**: one bot process, one WhatsApp session. Not designed for multiple concurrent group deployments from one codebase instance.
 - **No per-user rate limiting**: anyone in the configured group can trigger the pipeline; there's no cooldown or quota per sender, only the global one-at-a-time queue.
 - **Unofficial WhatsApp client**: see the note at the top of this README.
