@@ -11,6 +11,9 @@ import config from './config.js';
  */
 export async function notifyError(chat, tracker, error, logPrefix = '') {
     console.error(`${logPrefix} ✗ Error:`, error.message);
+    if (error.stack) {
+        console.error(error.stack);
+    }
 
     if (!config.ENABLE_ERROR_NOTIFICATIONS) {
         return;
